@@ -113,28 +113,37 @@ function removeNodeGypBins(appOutDir) {
 
 function lipoInfo(filePath) {
   try {
-    return execFileSync('lipo', ['-info', filePath], { encoding: 'utf8' }).trim()
+    return execFileSync('lipo', ['-info', filePath], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe']
+    }).trim()
   } catch {
     return ''
   }
 }
 
 function thinMacBinaryToArch(filePath, archName) {
-  const info = lipoInfo(filePath)
-  if (!info) return false
-  const isFat = info.includes('Architectures in the fat file') || info.includes('are:')
-  const hasTarget = info.includes(archName === 'x64' ? 'x86_64' : archName)
-  if (!hasTarget) return false
-  if (!isFat && info.includes(`architecture: ${archName === 'x64' ? 'x86_64' : archName}`)) {
+  try {
+    const info = lipoInfo(filePath)
+    if (!info) return false
+    const lipoArch = archName === 'x64' ? 'x86_64' : archName
+    const isFat = info.includes('Architectures in the fat file') || /\bare:\s/.test(info)
+    if (!isFat) return false
+    if (!info.includes(lipoArch)) return false
+
+    const tempPath = `${filePath}.thin`
+    execFileSync('lipo', [filePath, '-thin', lipoArch, '-output', tempPath])
+    fs.renameSync(tempPath, filePath)
+    return true
+  } catch (error) {
+    console.warn(`afterPack: failed to thin ${filePath}:`, error instanceof Error ? error.message : error)
+    try {
+      fs.rmSync(`${filePath}.thin`, { force: true })
+    } catch {
+      // ignore cleanup failure
+    }
     return false
   }
-  if (!isFat) return false
-
-  const lipoArch = archName === 'x64' ? 'x86_64' : archName
-  const tempPath = `${filePath}.thin`
-  execFileSync('lipo', [filePath, '-thin', lipoArch, '-output', tempPath])
-  fs.renameSync(tempPath, filePath)
-  return true
 }
 
 function thinMacNativeModules(appOutDir, archName) {
@@ -161,23 +170,29 @@ module.exports = async function (context) {
   const archName = archNameFromContext(context.arch)
   console.log(`afterPack: cleaning native extras for ${platform}/${archName}`)
 
-  const removedPrebuilds = cleanSerialPortPrebuilds(context.appOutDir, platform, archName)
-  if (removedPrebuilds.length) {
-    console.log(`afterPack: removed ${removedPrebuilds.length} serialport prebuild dir(s)`)
-    for (const item of removedPrebuilds) console.log(`  - ${item}`)
-  }
-
-  const removedBins = removeNodeGypBins(context.appOutDir)
-  if (removedBins.length) {
-    console.log(`afterPack: removed ${removedBins.length} node_gyp_bins dir(s)`)
-  }
-
-  if (platform === 'darwin' && (archName === 'arm64' || archName === 'x64')) {
-    const thinned = thinMacNativeModules(context.appOutDir, archName)
-    if (thinned.length) {
-      console.log(`afterPack: thinned ${thinned.length} fat native module(s) to ${archName}`)
-      for (const item of thinned) console.log(`  - ${item}`)
+  try {
+    const removedPrebuilds = cleanSerialPortPrebuilds(context.appOutDir, platform, archName)
+    if (removedPrebuilds.length) {
+      console.log(`afterPack: removed ${removedPrebuilds.length} serialport prebuild dir(s)`)
+      for (const item of removedPrebuilds) console.log(`  - ${item}`)
     }
+
+    const removedBins = removeNodeGypBins(context.appOutDir)
+    if (removedBins.length) {
+      console.log(`afterPack: removed ${removedBins.length} node_gyp_bins dir(s)`)
+    }
+
+    // lipo thin 仅 macOS；Windows/Linux 只做 prebuild/node_gyp_bins 清理，不改主程序架构
+    if (platform === 'darwin' && (archName === 'arm64' || archName === 'x64')) {
+      const thinned = thinMacNativeModules(context.appOutDir, archName)
+      if (thinned.length) {
+        console.log(`afterPack: thinned ${thinned.length} fat native module(s) to ${archName}`)
+        for (const item of thinned) console.log(`  - ${item}`)
+      }
+    }
+  } catch (error) {
+    // 清理失败不应阻断打包；最多保留未精简的 native 文件
+    console.warn('afterPack: native cleanup failed:', error instanceof Error ? error.message : error)
   }
 }
 
