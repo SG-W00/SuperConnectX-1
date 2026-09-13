@@ -111,11 +111,35 @@ function removeNodeGypBins(appOutDir) {
   return removed
 }
 
+function isMachOFile(filePath) {
+  try {
+    const fd = fs.openSync(filePath, 'r')
+    const buf = Buffer.alloc(4)
+    const read = fs.readSync(fd, buf, 0, 4, 0)
+    fs.closeSync(fd)
+    if (read < 4) return false
+    const magic = buf.readUInt32BE(0)
+    // Mach-O / fat magics (both endians)
+    return (
+      magic === 0xcafebabe ||
+      magic === 0xbebafeca ||
+      magic === 0xfeedface ||
+      magic === 0xcefaedfe ||
+      magic === 0xfeedfacf ||
+      magic === 0xcffaedfe
+    )
+  } catch {
+    return false
+  }
+}
+
 function lipoInfo(filePath) {
+  if (!isMachOFile(filePath)) return ''
   try {
     return execFileSync('lipo', ['-info', filePath], {
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 3000
     }).trim()
   } catch {
     return ''
@@ -124,6 +148,7 @@ function lipoInfo(filePath) {
 
 function thinMacBinaryToArch(filePath, archName) {
   try {
+    if (!isMachOFile(filePath)) return false
     const info = lipoInfo(filePath)
     if (!info) return false
     const lipoArch = archName === 'x64' ? 'x86_64' : archName
@@ -132,7 +157,10 @@ function thinMacBinaryToArch(filePath, archName) {
     if (!info.includes(lipoArch)) return false
 
     const tempPath = `${filePath}.thin`
-    execFileSync('lipo', [filePath, '-thin', lipoArch, '-output', tempPath])
+    execFileSync('lipo', [filePath, '-thin', lipoArch, '-output', tempPath], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 15000
+    })
     fs.renameSync(tempPath, filePath)
     return true
   } catch (error) {
@@ -201,5 +229,6 @@ module.exports._test = {
   shouldKeepPrebuildDir,
   cleanSerialPortPrebuilds,
   removeNodeGypBins,
-  thinMacBinaryToArch
+  thinMacBinaryToArch,
+  isMachOFile
 }

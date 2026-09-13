@@ -10,7 +10,8 @@ const {
   shouldKeepPrebuildDir,
   cleanSerialPortPrebuilds,
   removeNodeGypBins,
-  thinMacBinaryToArch
+  thinMacBinaryToArch,
+  isMachOFile
 } = afterPack._test
 
 describe('afterPack helpers', () => {
@@ -74,10 +75,11 @@ describe('afterPack helpers', () => {
     expect(fs.existsSync(bins)).toBe(false)
   })
 
-  it('thinMacBinaryToArch returns false for non-mach-o files', () => {
+  it('rejects non-mach-o files without calling a hanging lipo', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'afterpack-nonmacho-'))
     const filePath = path.join(dir, 'bindings.node')
     fs.writeFileSync(filePath, 'not a mach-o')
+    expect(isMachOFile(filePath)).toBe(false)
     expect(thinMacBinaryToArch(filePath, 'arm64')).toBe(false)
   })
 
