@@ -112,11 +112,10 @@ jobs:
 
       # CI 用 --ignore-scripts 安装，跳过了 electron 的 postinstall，导致二进制未下载。
       # 这里显式触发 electron 安装脚本下载二进制（会读取 .npmrc 的 electron_mirror 镜像）。
+      # 显式走镜像，避免 install.js 回落到 github.com 时偶发 ENOTFOUND
       - name: Install Electron binary
         env:
-          # 显式走镜像，避免 install.js 回落到 github.com 时偶发 ENOTFOUND
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
-          electron_mirror: https://npmmirror.com/mirrors/electron/
         run: node node_modules/electron/install.js
 
       # Electron 测试复用其自带二进制，无需下载 Chromium。
@@ -323,7 +322,6 @@ jobs:
       - name: Install Electron binary
         env:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
-          electron_mirror: https://npmmirror.com/mirrors/electron/
         run: node node_modules/electron/install.js
 
       # Linux 上用 install-deps 补齐 Electron 运行所需的系统库；
