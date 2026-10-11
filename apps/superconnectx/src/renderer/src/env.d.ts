@@ -19,6 +19,9 @@ interface SerialPortInfo {
   type?: 'virtual' | 'usb' | 'bluetooth' | 'none'
 }
 
+/** 编译期内联的贡献者数据（来自根 package.json 的 contributors 字段） */
+declare const __APP_CONTRIBUTORS__: Array<{ name: string; url: string; role?: string }>
+
 interface ToolApi {
   openDevtools: () => Promise<void>
   getAppResource: () => Promise<{ cpu: string; memory: string; memRate: string }>

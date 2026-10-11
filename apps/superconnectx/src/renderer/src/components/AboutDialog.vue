@@ -23,7 +23,7 @@
             class="contributor-item"
             href="#"
             :title="contributor.github"
-            @click.prevent="openContributor(contributor.github)"
+            @click.prevent="openContributor(contributor.url)"
           >
             <img class="contributor-avatar" :src="contributor.avatar" :alt="contributor.name" />
             <span class="contributor-name">{{ contributor.name }}</span>
@@ -42,7 +42,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import rawContributors from '../assets/about/contributors.json'
 
 const { t } = useI18n()
 
@@ -82,9 +81,7 @@ const resolveLocalAvatar = (name: string): string => {
   return found ? found[1] : ''
 }
 
-const contributors = (rawContributors as Array<{ name: string; github: string; avatar: string; role: string }>).map(
-  (c) => ({ ...c, avatar: resolveLocalAvatar(c.name) })
-)
+const contributors = __APP_CONTRIBUTORS__.map((c) => ({ ...c, avatar: resolveLocalAvatar(c.name) }))
 </script>
 
 <style scoped>

@@ -5,6 +5,23 @@
   "main": "./apps/superconnectx/out/main/index.js",
   "author": "SuperStudio",
   "homepage": "https://github.com/SuperStudio/SuperConnectX",
+  "contributors": [
+    {
+      "name": "SuperStudio",
+      "url": "https://github.com/SuperStudio",
+      "role": "Maintainer"
+    },
+    {
+      "name": "naiheSH",
+      "url": "https://github.com/naiheSH",
+      "role": "Contributor"
+    },
+    {
+      "name": "jhpang32",
+      "url": "https://github.com/jhpang32",
+      "role": "Contributor"
+    }
+  ],
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",

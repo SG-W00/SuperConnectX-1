@@ -2,12 +2,18 @@
 // 注意：所有路径以本文件所在目录（apps/superconnectx/）为锚，与执行 cwd 无关，
 // 根目录通过 `electron-vite dev --config apps/superconnectx/electron.vite.config.ts` 驱动本应用。
 import { resolve } from 'path'
+import { readFileSync } from 'node:fs'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
 
 const here = resolve(__dirname)
 // workspace 包源码根（相对 app 为 ../..）
 const repoRoot = resolve(here, '../..')
+
+// 读取根 package.json，将 contributors 在编译期内联进 renderer bundle（与应用一起打包，不依赖运行时文件）
+const rootPkg = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf-8')) as {
+  contributors?: Array<{ name: string; url: string; role?: string }>
+}
 
 export default defineConfig({
   main: {
@@ -48,6 +54,9 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(here, 'src/renderer'),
+    define: {
+      __APP_CONTRIBUTORS__: JSON.stringify(rootPkg.contributors ?? [])
+    },
     resolve: {
       alias: {
         '@renderer': resolve(here, 'src/renderer/src'),
