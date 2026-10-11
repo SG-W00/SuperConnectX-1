@@ -123,7 +123,6 @@
           <div class="menu-item" @click="handleDoc">{{ t('titlebar.doc') }}</div>
           <div class="menu-item" @click="handleAbout">{{ t('titlebar.about') }}</div>
           <div class="menu-item" @click="handleFeedBack">{{ t('titlebar.feedback') }}</div>
-          <div class="menu-item" @click="handleDevelop">{{ t('titlebar.develop') }}</div>
         </div>
       </div>
     </div>
@@ -383,10 +382,6 @@ const handleExit = async () => {
 const handleAbout = () => {
   showHelpMenu.value = false
   emit('open-about')
-}
-
-const handleDevelop = () => {
-  showHelpMenu.value = false
 }
 
 const handleFeedBack = () => {
