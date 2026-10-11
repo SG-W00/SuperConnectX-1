@@ -3,7 +3,7 @@
     <div class="search-inner">
       <input
         type="text"
-        :placeholder="t('sidebar.searchPlaceholder')"
+        :placeholder="props.placeholder ?? t('sidebar.searchPlaceholder')"
         v-model="searchText"
         @input="handleSearch"
         class="search-input"
@@ -19,6 +19,7 @@ import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
+const props = defineProps<{ placeholder?: string }>()
 const emit = defineEmits(['search'])
 const searchText = ref('')
 

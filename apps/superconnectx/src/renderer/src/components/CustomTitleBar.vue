@@ -106,6 +106,8 @@
           <div class="menu-item" @click="handleVirtualPort">{{ t('virtualPort.title') }}</div>
           <div class="menu-item" @click="handleCheckUpdate">{{ t('sidebar.checkUpdate') }}</div>
           <div class="menu-item" @click="handlePlugins">{{ t('sidebar.plugins') }}</div>
+          <div class="menu-separator"></div>
+          <div class="menu-item" @click="handleAsciiTable">{{ t('titlebar.asciiTable') }}</div>
         </div>
       </div>
 
@@ -197,6 +199,7 @@ const emit = defineEmits([
   'open-virtualPort',
   'check-update',
   'open-plugins',
+  'open-ascii',
   'toggle-word-wrap',
   'toggle-line-numbers',
   'toggle-log-editable',
@@ -417,6 +420,11 @@ const handleCheckUpdate = () => {
 const handlePlugins = () => {
   showToolsMenu.value = false
   emit('open-plugins')
+}
+
+const handleAsciiTable = () => {
+  showToolsMenu.value = false
+  emit('open-ascii')
 }
 
 const handleMenuMouseEnter = async (menuType) => {

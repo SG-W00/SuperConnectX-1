@@ -21,6 +21,7 @@
         @check-update="updateDialogRef?.open()"
         :log-editable="terminalLogEditable"
         @open-plugins="handlePlugins"
+        @open-ascii="openAsciiTab"
         @toggle-word-wrap="handleToggleWordWrap"
         @toggle-line-numbers="handleToggleLineNumbers"
         @toggle-log-editable="handleToggleLogEditable"
@@ -271,6 +272,11 @@
                 v-show="isTabActiveInItsPanel(tab.id.toString())"
                 class="terminal-component"
               />
+              <AsciiTable
+                v-if="tab.connectionType === 'ascii'"
+                v-show="isTabActiveInItsPanel(tab.id.toString())"
+                class="terminal-component"
+              />
             </Teleport>
           </template>
         </div>
@@ -329,6 +335,7 @@ import CommandEditor from './features/commands/CommandEditor.vue'
 import ShortcutsPage from './components/ShortcutsPage.vue'
 import SettingsPage from './components/SettingsPage.vue'
 import VirtualPortPage from './features/virtual-port/VirtualPortPage.vue'
+import AsciiTable from './components/AsciiTable.vue'
 import AppShell from '@superx/foundation/shell/AppShell.vue'
 import StatusBar from '@superx/foundation/shell/StatusBar.vue'
 import SidebarResizeHandle from '@superx/foundation/shell/SidebarResizeHandle.vue'
@@ -433,6 +440,7 @@ const {
   openShortcutsTab,
   openSettingsTab,
   openVirtualPortTab,
+  openAsciiTab,
   bindTabMenuDismiss
 } = useTabManager(comTerminalRefs, telnetTerminalRefs)
 

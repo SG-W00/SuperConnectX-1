@@ -291,6 +291,14 @@ export function useTabManager(
     activeTabId.value = newTabId
   }
 
+  const openAsciiTab = () => {
+    const existingTab = connectionTabs.value.find((t) => t.connectionType === 'ascii')
+    if (existingTab) { activeTabId.value = existingTab.id; return }
+    const newTabId = 'ascii-' + Date.now()
+    connectionTabs.value.push({ connectionType: 'ascii', name: t('titlebar.asciiTable'), id: newTabId, sessionId: newTabId })
+    activeTabId.value = newTabId
+  }
+
   /**
    * 绑定全局点击/右键时自动关闭 Tab 右键菜单的 DOM 监听。
    * 返回解绑函数；Node 测试环境（无 document）自动跳过。
@@ -343,6 +351,7 @@ export function useTabManager(
     openCommandEditorTab,
     openShortcutsTab,
     openSettingsTab,
-    openVirtualPortTab
+    openVirtualPortTab,
+    openAsciiTab
   }
 }
