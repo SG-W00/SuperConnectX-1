@@ -395,6 +395,7 @@ const handleFeedBack = () => {
 }
 
 const handleDoc = () => {
+  window.toolApi.openExternalUrl('https://github.com/SuperStudio/SuperConnectX/wiki')
   showHelpMenu.value = false
 }
 

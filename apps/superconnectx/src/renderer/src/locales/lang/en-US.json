@@ -570,7 +570,7 @@
     "title": "About SuperConnectX",
     "version": "Version {version}",
     "description": "SuperConnectX - AI-enabled multi-protocol terminal tool",
-    "doc": "Documentation",
+    "group": "Community",
     "contributors": "Contributors"
   },
   "ftp": {

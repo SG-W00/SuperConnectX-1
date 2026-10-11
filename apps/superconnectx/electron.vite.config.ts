@@ -13,6 +13,7 @@ const repoRoot = resolve(here, '../..')
 // 读取根 package.json，将 contributors 在编译期内联进 renderer bundle（与应用一起打包，不依赖运行时文件）
 const rootPkg = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf-8')) as {
   contributors?: Array<{ name: string; url: string; role?: string }>
+  app_config?: { JoinGroupUrl?: string }
 }
 
 export default defineConfig({
@@ -55,7 +56,8 @@ export default defineConfig({
   renderer: {
     root: resolve(here, 'src/renderer'),
     define: {
-      __APP_CONTRIBUTORS__: JSON.stringify(rootPkg.contributors ?? [])
+      __APP_CONTRIBUTORS__: JSON.stringify(rootPkg.contributors ?? []),
+      __APP_JOIN_GROUP_URL__: JSON.stringify(rootPkg.app_config?.JoinGroupUrl ?? '')
     },
     resolve: {
       alias: {

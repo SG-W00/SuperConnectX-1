@@ -21,6 +21,8 @@ interface SerialPortInfo {
 
 /** 编译期内联的贡献者数据（来自根 package.json 的 contributors 字段） */
 declare const __APP_CONTRIBUTORS__: Array<{ name: string; url: string; role?: string }>
+/** 编译期内联的交流群链接（来自根 package.json 的 app_config.JoinGroupUrl） */
+declare const __APP_JOIN_GROUP_URL__: string
 
 interface ToolApi {
   openDevtools: () => Promise<void>

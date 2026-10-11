@@ -19,10 +19,10 @@
         <div class="contributor-list">
           <a
             v-for="contributor in contributors"
-            :key="contributor.github"
+            :key="contributor.url"
             class="contributor-item"
             href="#"
-            :title="contributor.github"
+            :title="contributor.url"
             @click.prevent="openContributor(contributor.url)"
           >
             <img class="contributor-avatar" :src="contributor.avatar" :alt="contributor.name" />
@@ -33,7 +33,7 @@
       <div class="about-divider"></div>
       <p class="about-links">
         <a href="#" @click.prevent="openGithub">GitHub</a> |
-        <a href="#" @click.prevent="openDoc">{{ t('about.doc') }}</a>
+        <a v-if="joinGroupUrl" href="#" @click.prevent="openGroup">{{ t('about.group') }}</a>
       </p>
     </div>
   </el-dialog>
@@ -63,8 +63,9 @@ const openGithub = () => {
   window.toolApi.openExternalUrl('https://github.com/SuperStudio/SuperConnectX')
 }
 
-const openDoc = () => {
-  window.toolApi.openExternalUrl('https://github.com/SuperStudio/SuperConnectX#readme')
+const joinGroupUrl = __APP_JOIN_GROUP_URL__
+const openGroup = () => {
+  if (joinGroupUrl) window.toolApi.openExternalUrl(joinGroupUrl)
 }
 
 const openContributor = (github: string) => {
