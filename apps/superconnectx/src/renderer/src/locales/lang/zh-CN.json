@@ -570,9 +570,8 @@
     "title": "关于 SuperConnectX",
     "version": "版本 {version}",
     "description": "超级连接 - 多协议终端连接工具",
-    "author": "作者：SuperStudio",
-    "copyright": "版权所有 Copyright © 2025 SuperStudio",
-    "doc": "文档"
+    "doc": "文档",
+    "contributors": "贡献者"
   },
   "ftp": {
     "mode": "模式",
