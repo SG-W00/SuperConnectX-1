@@ -3,6 +3,9 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { app } from 'electron'
 
+// 编译期内联的仓库地址（来自根 package.json 的 app_config.RepositoryUrl，经 electron.vite define 注入）
+declare const __APP_REPOSITORY_URL__: string
+
 const SKILL_NAME = 'superconnectx-mcp'
 
 function skillSourceCandidates(): string[] {
@@ -38,7 +41,7 @@ export function getSkillInstallTargets(): Array<{ id: string; path: string }> {
 export function getSkillInstallCommands(): { gitClone: string; cliInstall: string; symlink: string } {
   return {
     gitClone: [
-      'git clone --depth 1 --filter=blob:none --sparse https://github.com/SuperStudio/SuperConnectX.git scx-tmp',
+      `git clone --depth 1 --filter=blob:none --sparse ${__APP_REPOSITORY_URL__}.git scx-tmp`,
       'cd scx-tmp && git sparse-checkout set packages/superconnectx-mcp-skill',
       'mkdir -p ~/.agents/skills && rm -rf ~/.agents/skills/superconnectx-mcp',
       'cp -R packages/superconnectx-mcp-skill ~/.agents/skills/superconnectx-mcp'

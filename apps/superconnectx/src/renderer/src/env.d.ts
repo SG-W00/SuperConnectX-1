@@ -23,6 +23,12 @@ interface SerialPortInfo {
 declare const __APP_CONTRIBUTORS__: Array<{ name: string; url: string; role?: string }>
 /** 编译期内联的交流群链接（来自根 package.json 的 app_config.JoinGroupUrl） */
 declare const __APP_JOIN_GROUP_URL__: string
+/** 编译期内联的仓库地址（来自根 package.json 的 app_config.RepositoryUrl） */
+declare const __APP_REPOSITORY_URL__: string
+/** 编译期内联的 Issues 链接（来自根 package.json 的 app_config.IssuesUrl） */
+declare const __APP_ISSUES_URL__: string
+/** 编译期内联的 Wiki 链接（来自根 package.json 的 app_config.WikiUrl） */
+declare const __APP_WIKI_URL__: string
 
 interface ToolApi {
   openDevtools: () => Promise<void>

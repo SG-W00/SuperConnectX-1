@@ -60,7 +60,7 @@ const loadVersion = async () => {
 loadVersion()
 
 const openGithub = () => {
-  window.toolApi.openExternalUrl('https://github.com/SuperStudio/SuperConnectX')
+  window.toolApi.openExternalUrl(__APP_REPOSITORY_URL__)
 }
 
 const joinGroupUrl = __APP_JOIN_GROUP_URL__

@@ -390,12 +390,12 @@ const handleDevelop = () => {
 }
 
 const handleFeedBack = () => {
-  window.toolApi.openExternalUrl('https://github.com/SuperStudio/SuperConnectX/issues')
+  window.toolApi.openExternalUrl(__APP_ISSUES_URL__)
   showHelpMenu.value = false
 }
 
 const handleDoc = () => {
-  window.toolApi.openExternalUrl('https://github.com/SuperStudio/SuperConnectX/wiki')
+  window.toolApi.openExternalUrl(__APP_WIKI_URL__)
   showHelpMenu.value = false
 }
 

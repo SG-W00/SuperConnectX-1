@@ -268,7 +268,7 @@ const handleStartDownload = () => {
 }
 
 const handleOpenWebsite = () => {
-  const repoUrl = 'https://github.com/SuperStudio/SuperConnectX'
+  const repoUrl = __APP_REPOSITORY_URL__
   const tagVersion = updateInfo.value?.version || currentVersion.value
   const url = `${repoUrl}/releases/tag/v${tagVersion}`
   window.toolApi.openExternalUrl(url)
