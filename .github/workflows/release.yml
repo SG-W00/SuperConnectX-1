@@ -251,13 +251,13 @@ jobs:
         run: |
           cd release-assets
           if ls *.dmg 1>/dev/null 2>&1; then
-            VERSION=$(ls *.dmg | head -1 | grep -oP '\d+\.\d+\.\d+' || echo '0.0.0')
+            VERSION="${GITHUB_REF_NAME#v}"
             echo "version: $VERSION" > latest-mac.yml
             echo "releaseDate: '$(date -u +%Y-%m-%dT%H:%M:%S.000Z)'" >> latest-mac.yml
             echo "files:" >> latest-mac.yml
             for dmg in *.dmg; do
               SIZE=$(stat -c%s "$dmg" 2>/dev/null || stat -f%z "$dmg" 2>/dev/null || echo 0)
-              SHA512=$(sha512sum "$dmg" 2>/dev/null | cut -d' ' -f1 || shasum -a 512 "$dmg" 2>/dev/null | cut -d' ' -f1 || echo '')
+              SHA512=$(openssl dgst -sha512 -binary "$dmg" | base64 -w0)
               echo "  - url: $dmg" >> latest-mac.yml
               echo "    sha512: $SHA512" >> latest-mac.yml
               echo "    size: $SIZE" >> latest-mac.yml
