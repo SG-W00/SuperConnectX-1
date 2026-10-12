@@ -57,7 +57,9 @@
       <div v-else-if="status === 'update-downloaded'" class="update-status">
         <el-icon class="status-icon success" :size="40"><CircleCheck /></el-icon>
         <p class="status-text">{{ t('update.downloadComplete') }}</p>
-        <p class="status-subtext">{{ t('update.restartPrompt') }}</p>
+        <p class="status-subtext">
+          {{ isMac ? t('update.manualInstallPrompt') : t('update.restartPrompt') }}
+        </p>
       </div>
 
       <!-- 错误 -->
@@ -114,7 +116,7 @@
           class="btn-primary"
           @click="handleRestart"
         >
-          {{ t('update.restartNow') }}
+          {{ isMac ? t('update.openInstaller') : t('update.restartNow') }}
         </el-button>
       </div>
     </template>
@@ -146,6 +148,8 @@ const updateInfo = ref<{ version: string; releaseDate?: string; releaseNotes?: s
 const progressInfo = ref<{ percent: number; transferred: number; total: number; bytesPerSecond: number } | null>(null)
 const errorMessage = ref('')
 const currentVersion = ref('')
+// macOS 未签名构建自动安装会失败，下载完成后引导用户手动安装
+const isMac = window.windowApi.platform === 'darwin'
 
 const progressColor = computed(() => {
   const pct = progressInfo.value?.percent || 0

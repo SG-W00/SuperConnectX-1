@@ -123,6 +123,7 @@ contextBridge.exposeInMainWorld('dialogApi', {
 })
 
 contextBridge.exposeInMainWorld('windowApi', {
+  platform: process.platform,
   minimizeWindow: () => ipcRenderer.invoke(WINDOW_IPC_CHANNELS.minimize),
   maximizeWindow: () => ipcRenderer.invoke(WINDOW_IPC_CHANNELS.toggleMaximize),
   closeWindow: () => ipcRenderer.invoke(WINDOW_IPC_CHANNELS.close),

@@ -1,5 +1,5 @@
 import { autoUpdater } from 'electron-updater'
-import { BrowserWindow, app } from 'electron'
+import { BrowserWindow, app, shell } from 'electron'
 import { CancellationToken } from 'builder-util-runtime'
 import logger from '../ipc/IpcAppLogger'
 import {
@@ -15,6 +15,7 @@ export default class AppUpdater {
   private mainWindow: BrowserWindow | null = null
   private _cachedUpdateInfo: UpdateInfo | null = null
   private downloadCancellation: CancellationToken | null = null
+  private downloadedFilePath: string | null = null
   private silentMode = false
 
   static getInstance(): AppUpdater {
@@ -35,7 +36,8 @@ export default class AppUpdater {
 
     // 配置 autoUpdater - 支持断点续传
     autoUpdater.autoDownload = false // 手动控制下载，让用户选择
-    autoUpdater.autoInstallOnAppQuit = true // 退出时自动安装
+    // macOS 未签名构建在退出时自动安装必然失败，下载完成后引导用户手动安装
+    autoUpdater.autoInstallOnAppQuit = process.platform !== 'darwin'
     autoUpdater.allowDowngrade = false
     autoUpdater.allowPrerelease = false
     autoUpdater.disableDifferentialDownload = true // 禁用差分下载，避免 ENOENT 错误
@@ -91,6 +93,8 @@ export default class AppUpdater {
     // 更新包下载完成
     autoUpdater.on('update-downloaded', (info) => {
       logger.info(`[Updater] Update downloaded: ${info.version}`)
+      // electron-updater 6.x 的 UpdateDownloadedEvent 带有 downloadedFile（下载完成的安装包路径）
+      this.downloadedFilePath = (info as { downloadedFile?: string }).downloadedFile || null
       this.sendStatus('update-downloaded', {
         version: info.version,
         releaseNotes: this._cachedUpdateInfo?.releaseNotes || ''
@@ -166,8 +170,29 @@ export default class AppUpdater {
 
   /** 立即安装并重启 */
   quitAndInstall(): void {
+    // macOS 未签名构建的 Squirrel 自动安装必然失败：改为在 Finder 中展示已下载的安装包，
+    // 退出应用后由用户手动替换安装；其他平台保持自动安装流程
+    if (process.platform === 'darwin') {
+      this.openDownloadedUpdateAndQuit()
+      return
+    }
     logger.info('[Updater] Quit and install update')
     autoUpdater.quitAndInstall(false, true)
+  }
+
+  /** macOS 手动安装：展示下载完成的安装包并退出应用 */
+  private openDownloadedUpdateAndQuit(): void {
+    const file = this.downloadedFilePath
+    if (!file) {
+      logger.error('[Updater] No downloaded file path for manual install')
+      this.sendStatus('error', {
+        message: mapUpdateErrorToFriendlyMessage(new Error('Downloaded update file missing'))
+      })
+      return
+    }
+    logger.info(`[Updater] Reveal downloaded update for manual install: ${file}`)
+    shell.showItemInFolder(file)
+    app.quit()
   }
 
   /** 获取缓存的更新信息 */
