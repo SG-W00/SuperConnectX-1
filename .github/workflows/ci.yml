@@ -24,8 +24,10 @@ jobs:
           - name: Linux
             os: ubuntu-22.04
             builder-target: --linux
+          # Apple Silicon：macos-14 已宣布弃用，改用 macos-15 arm64
+          # Intel：继续用 macos-15-intel；macOS 27 / xcode-27 仅 arm64，不代表停发 x64
           - name: macOS (Apple Silicon)
-            os: macos-14
+            os: macos-15
             builder-target: --mac --arm64
             mac-arch: arm64
           - name: macOS (Intel)
@@ -110,7 +112,10 @@ jobs:
 
       # CI 用 --ignore-scripts 安装，跳过了 electron 的 postinstall，导致二进制未下载。
       # 这里显式触发 electron 安装脚本下载二进制（会读取 .npmrc 的 electron_mirror 镜像）。
+      # 显式走镜像，避免 install.js 回落到 github.com 时偶发 ENOTFOUND
       - name: Install Electron binary
+        env:
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
         run: node node_modules/electron/install.js
 
       # Electron 测试复用其自带二进制，无需下载 Chromium。
@@ -315,6 +320,8 @@ jobs:
 
       # 确保 Electron 35 二进制已就绪（--ignore-scripts 可能跳过了下载）
       - name: Install Electron binary
+        env:
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
         run: node node_modules/electron/install.js
 
       # Linux 上用 install-deps 补齐 Electron 运行所需的系统库；

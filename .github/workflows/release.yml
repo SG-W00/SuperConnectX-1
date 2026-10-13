@@ -36,8 +36,10 @@ jobs:
               release/*.deb
               release/*.yml
               release/*.blockmap
+          # Apple Silicon：macos-14 已宣布弃用（2026-11 退役），改用 macos-15 arm64
+          # Intel：仍单独用 macos-15-intel 出 x64 包；macOS 27 / xcode-27 镜像只有 arm64，不代表要停发 x64
           - name: macOS (Apple Silicon)
-            os: macos-14
+            os: macos-15
             builder-target: --mac --arm64
             mac-arch: arm64
             artifact-name: macos-arm64
@@ -249,19 +251,30 @@ jobs:
         run: |
           cd release-assets
           if ls *.dmg 1>/dev/null 2>&1; then
-            VERSION=$(ls *.dmg | head -1 | grep -oP '\d+\.\d+\.\d+' || echo '0.0.0')
+            VERSION="${GITHUB_REF_NAME#v}"
             echo "version: $VERSION" > latest-mac.yml
             echo "releaseDate: '$(date -u +%Y-%m-%dT%H:%M:%S.000Z)'" >> latest-mac.yml
             echo "files:" >> latest-mac.yml
             for dmg in *.dmg; do
               SIZE=$(stat -c%s "$dmg" 2>/dev/null || stat -f%z "$dmg" 2>/dev/null || echo 0)
-              SHA512=$(sha512sum "$dmg" 2>/dev/null | cut -d' ' -f1 || shasum -a 512 "$dmg" 2>/dev/null | cut -d' ' -f1 || echo '')
+              SHA512=$(openssl dgst -sha512 -binary "$dmg" | base64 -w0)
               echo "  - url: $dmg" >> latest-mac.yml
               echo "    sha512: $SHA512" >> latest-mac.yml
               echo "    size: $SIZE" >> latest-mac.yml
             done
-            echo "Generated latest-mac.yml with $(ls *.dmg | wc -l) architecture(s)"
-            cat latest-mac.yml
+            VERSION="$VERSION" node -e '
+              const fs = require("fs");
+              const text = fs.readFileSync("latest-mac.yml", "utf8");
+              const version = text.match(/^version:\s*(\S+)$/m)?.[1];
+              if (version !== process.env.VERSION) throw new Error("invalid version");
+              const entries = [...text.matchAll(/^  - url:\s*(\S+)\n    sha512:\s*(\S+)\n    size:\s*(\d+)$/gm)];
+              if (!entries.length || !text.includes("files:")) throw new Error("missing files");
+              for (const [, url, sha512, size] of entries) {
+                if (!url.endsWith(".dmg") || Number(size) <= 0) throw new Error("invalid mac update entry");
+                if (!/^[A-Za-z0-9+/]{86}==$/.test(sha512)) throw new Error("invalid sha512");
+              }
+              console.log("Validated latest-mac.yml");
+            '
           fi
 
       # 生成 SHA256 校验和文件：让用户下载后能自证安装包完整性（开源项目无代码签名时的可信度补充）
