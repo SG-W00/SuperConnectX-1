@@ -101,6 +101,7 @@ declare global {
       writeToLog: (sessionId: string, content: string) => Promise<any>
     }
     windowApi: {
+      platform: NodeJS.Platform
       minimizeWindow: () => Promise<void>
       maximizeWindow: () => Promise<void>
       closeWindow: () => Promise<void>

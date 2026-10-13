@@ -598,6 +598,8 @@
     "downloadComplete": "Update downloaded",
     "restartPrompt": "Restart to complete the update",
     "restartNow": "Restart Now",
+    "openInstaller": "Open Installer",
+    "manualInstallPrompt": "The installer will be revealed in Finder. Replace the app manually after it quits.",
     "retry": "Retry",
     "recheck": "Recheck",
     "openWebsite": "Download",

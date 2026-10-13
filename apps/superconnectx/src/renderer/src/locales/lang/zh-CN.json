@@ -598,6 +598,8 @@
     "downloadComplete": "更新包下载完成",
     "restartPrompt": "点击重启应用以完成更新",
     "restartNow": "立即重启",
+    "openInstaller": "打开安装包",
+    "manualInstallPrompt": "已在 Finder 中定位安装包，应用退出后请手动替换安装",
     "retry": "重试",
     "recheck": "重新检测",
     "openWebsite": "官网下载",
