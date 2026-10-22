@@ -741,7 +741,7 @@ const appendToTerminal = (content: string) => {
         {
           range: new monaco.Range(lastLine, lastCol, lastLine, lastCol),
           text: cleanText,
-          forceMoveMarkers: true
+          forceMoveMarkers: false
         }
       ],
       () => null

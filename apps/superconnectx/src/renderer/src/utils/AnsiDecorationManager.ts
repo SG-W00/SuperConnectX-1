@@ -99,7 +99,10 @@ export class AnsiDecorationManager {
 
       newDecorations.push({
         range: new monaco.Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column),
-        options: { inlineClassName: className }
+        options: {
+          inlineClassName: className,
+          stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+        }
       })
     }
 
