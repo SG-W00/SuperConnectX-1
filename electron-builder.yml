@@ -14,6 +14,8 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!**/node_modules/{CHANGELOG.md,README.md,readme.md,test,__tests__,tests,powered-test,example,examples}'
   - '!**/node_modules/.bin'
+  - '!**/node_modules/monaco-editor/**'
+  - '!**/node_modules/element-plus/**'
 extraResources:
   - from: apps/superconnectx/build/icon.ico
     to: icon.ico
