@@ -57,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, shallowRef, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Close, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
 
@@ -125,9 +125,9 @@ const listRef = ref<HTMLElement | null>(null)
 const filterInputRef = ref<{ focus: () => void } | null>(null)
 
 // 编译后的正则必须是响应式 ref，否则 computed(matchedLines) 不会在输入时重新计算
-const regex = ref<RegExp | null>(null)
+const regex = shallowRef<RegExp | null>(null)
 // 带 g 标志的正则，用于行内多段匹配高亮（需每次重建以重置 lastIndex）
-const regexGlobal = ref<RegExp | null>(null)
+const regexGlobal = shallowRef<RegExp | null>(null)
 
 const compileRegex = () => {
   const raw = pattern.value.trim()
@@ -267,6 +267,8 @@ const loadPersisted = async () => {
     }
     if (saved?.pattern !== undefined) {
       pattern.value = saved.pattern
+      compileRegex()
+      activeLineNumber.value = null
     }
   } catch (err) {
     console.error('load log-filter settings failed:', err)

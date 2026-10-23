@@ -201,7 +201,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
+import { ref, shallowRef, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as monaco from 'monaco-editor'
 import PresetCommands from '../commands/PresetCommands.vue'
@@ -281,7 +281,7 @@ const activeSyntaxGroupId = ref<number | undefined>(undefined)
 const showLogFilter = ref(false)
 // 缓存日志行（lineNumber → 内容），用于过滤面板
 // lineNumber 为 Monaco model 行号，可直接用于定位
-const logLines = ref<{ lineNumber: number; text: string }[]>([])
+const logLines = shallowRef<{ lineNumber: number; text: string }[]>([])
 
 // 日志过滤面板定位并选中指定行（Monaco model 行号）
 const locateLine = (lineNumber: number) => {
@@ -670,13 +670,16 @@ const initEditor = async () => {
   }
 }
 
+// 创建一个字符串的拷贝, 避免切片引用历史版本的完整字符串, 造成内存泄漏
+const getLineContentNoShadow = (n) => Array.from(editorModel?.getLineContent(n) ?? '').join('')
+
 // 全量重建日志行缓存（供过滤面板打开时兜底，确保包含初始行等未增量同步内容）
 const rebuildLogLines = () => {
   if (!editorModel) return
   const count = editorModel.getLineCount()
   const arr: { lineNumber: number; text: string }[] = []
   for (let n = 1; n <= count; n++) {
-    arr.push({ lineNumber: n, text: editorModel.getLineContent(n) })
+    arr.push({ lineNumber: n, text: getLineContentNoShadow(n) })
   }
   logLines.value = arr
 }
@@ -691,7 +694,7 @@ const syncLogLines = (prevLineCount: number) => {
   if (newLineCount === prevLineCount) {
     // 仅在末行追加，更新末行内容
     const idx = arr.findIndex((l) => l.lineNumber === prevLineCount)
-    const content = editorModel.getLineContent(prevLineCount)
+    const content = getLineContentNoShadow(prevLineCount)
     if (idx >= 0) {
       arr[idx] = { lineNumber: prevLineCount, text: content }
     } else {
@@ -702,7 +705,7 @@ const syncLogLines = (prevLineCount: number) => {
     const idx = arr.findIndex((l) => l.lineNumber === prevLineCount)
     if (idx >= 0) arr.splice(idx, 1)
     for (let n = prevLineCount; n <= newLineCount; n++) {
-      arr.push({ lineNumber: n, text: editorModel.getLineContent(n) })
+      arr.push({ lineNumber: n, text: getLineContentNoShadow(n) })
     }
   }
   logLines.value = arr
