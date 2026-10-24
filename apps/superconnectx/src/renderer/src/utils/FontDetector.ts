@@ -34,6 +34,18 @@ export const getDefaultTerminalFont = (userAgent?: string): string => {
   return "'Fira Code', 'Ubuntu Mono', 'Noto Sans Mono CJK SC', 'WenQuanYi Micro Hei Mono', 'DejaVu Sans Mono', monospace"
 }
 
+/**
+ * 把 CSS font-family 值归一化为单个字体名，用于与系统字体列表比对。
+ * 终端的 fontFamily 常是字体栈（如 "'Fira Code', 'Cascadia Mono', 'Consolas', monospace"），
+ * 而字体菜单列出的是单个字体名，直接全等比较永远匹配不上，会导致当前字体无法高亮选中。
+ * 这里取字体栈中的第一个字体并去掉首尾引号。
+ */
+export const normalizeFontFamily = (fontFamily: string): string => {
+  if (!fontFamily) return ''
+  const first = fontFamily.split(',')[0].trim()
+  return first.replace(/^['"]+/, '').replace(/['"]+$/, '')
+}
+
 export const formatFontName = (fontName: string) => {
   const fontNameMap: Record<string, string> = {
     SimSun: '宋体',

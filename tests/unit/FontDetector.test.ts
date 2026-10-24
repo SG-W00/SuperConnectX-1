@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   formatFontName,
   getSystemFonts,
-  getDefaultTerminalFont
+  getDefaultTerminalFont,
+  normalizeFontFamily
 } from '@/renderer/src/utils/FontDetector'
 
 describe('FontDetector', () => {
@@ -79,6 +80,32 @@ describe('FontDetector', () => {
 
     it('空字符串返回空字符串', () => {
       expect(formatFontName('')).toBe('')
+    })
+  })
+
+  describe('normalizeFontFamily', () => {
+    // 终端里的 fontFamily 常是字体栈，而字体菜单列出的是单个字体名，
+    // 必须取出字体栈的第一个字体才能与菜单项比对（否则当前字体永远无法高亮选中）
+    it('从字体栈中取出第一个字体', () => {
+      expect(normalizeFontFamily("'Fira Code', 'Cascadia Mono', 'Consolas', monospace")).toBe(
+        'Fira Code'
+      )
+      expect(normalizeFontFamily("'Fira Code', 'Menlo', 'Monaco', monospace")).toBe('Fira Code')
+    })
+
+    it('单个字体名原样返回', () => {
+      expect(normalizeFontFamily('Consolas')).toBe('Consolas')
+      expect(normalizeFontFamily('Microsoft YaHei')).toBe('Microsoft YaHei')
+    })
+
+    it('去掉首尾引号', () => {
+      expect(normalizeFontFamily('"Consolas"')).toBe('Consolas')
+      expect(normalizeFontFamily("'Fira Code'")).toBe('Fira Code')
+      expect(normalizeFontFamily('  Consolas  ')).toBe('Consolas')
+    })
+
+    it('空值返回空字符串', () => {
+      expect(normalizeFontFamily('')).toBe('')
     })
   })
 
