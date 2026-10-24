@@ -123,6 +123,20 @@
                 :spellcheck="false"
               />
             </div>
+            <div class="setting-item">
+              <div class="setting-label">
+                <span class="label-text">{{
+                  t('basicSettings.confirmCloseWithActiveConnections')
+                }}</span>
+                <span class="label-desc">{{
+                  t('basicSettings.confirmCloseWithActiveConnectionsDesc')
+                }}</span>
+              </div>
+              <el-switch
+                class="terminal-switch"
+                v-model="settings.confirmCloseWithActiveConnections"
+              />
+            </div>
           </div>
 
         </div>

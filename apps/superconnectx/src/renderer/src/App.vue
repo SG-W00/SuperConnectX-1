@@ -26,6 +26,7 @@
         @toggle-line-numbers="handleToggleLineNumbers"
         @toggle-log-editable="handleToggleLogEditable"
         @save-log-as="handleSaveLogAs"
+        :active-connection-count="activeConnectionCount"
       />
     </template>
     <NotifyContainer ref="notifyContainerRef" :default-duration="notificationDuration" />
@@ -316,7 +317,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import CustomTitleBar from './components/CustomTitleBar.vue'
@@ -443,6 +444,18 @@ const {
   openAsciiTab,
   bindTabMenuDismiss
 } = useTabManager(comTerminalRefs, telnetTerminalRefs)
+
+// ---- 活动连接数（关闭应用前确认提示用） ----
+const activeConnectionCount = computed(() => {
+  return connectionTabs.value.filter((tab) => {
+    if (tab.connectionType === 'com') {
+      return comTerminalRefs[tab.id]?.isConnected
+    } else if (tab.connectionType === 'telnet' || tab.connectionType === 'ftp') {
+      return telnetTerminalRefs[tab.id]?.isConnected
+    }
+    return false
+  }).length
+})
 
 // ---- Split Panel ----
 const {

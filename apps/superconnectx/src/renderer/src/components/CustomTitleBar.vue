@@ -162,8 +162,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { ref, onMounted, onUnmounted, watch, nextTick, h } from 'vue'
+import { ElMessageBox, ElCheckbox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import { getSystemFonts, formatFontName, getDefaultTerminalFont } from '../utils/FontDetector'
 import ExportDialog from './ExportDialog.vue'
@@ -230,13 +230,102 @@ const props = defineProps({
   logEditable: {
     type: Boolean,
     default: false
+  },
+  activeConnectionCount: {
+    type: Number,
+    default: 0
   }
 })
 
 let removeMaximizedListener: (() => void) | undefined
 const minimizeWindow = () => window.windowApi.minimizeWindow()
 const maximizeWindow = () => window.windowApi.maximizeWindow()
-const closeWindow = () => window.windowApi.closeWindow()
+
+// "不再提醒"勾选状态（关闭应用前确认框）
+const dontRemindClose = ref(false)
+
+/**
+ * 关闭应用前的活动连接确认：
+ * - 无活动连接、已勾选"不再提醒"、或关闭行为是最小化到托盘（不会退出应用）时直接放行；
+ * - 否则弹出确认框（含"不再提醒"勾选），勾选后持久化该偏好。
+ * 返回 true 表示允许继续关闭。
+ */
+const confirmCloseWithActiveConnections = async (): Promise<boolean> => {
+  if (props.activeConnectionCount <= 0) return true
+
+  let currentSettings: Record<string, unknown> = {}
+  try {
+    currentSettings = (await window.storageApi.getSettings()) || {}
+  } catch {
+    // 读取设置失败时按默认行为（弹出提示）处理
+  }
+
+  if (
+    currentSettings.confirmCloseWithActiveConnections === false ||
+    currentSettings.minimizeToTray === true
+  ) {
+    return true
+  }
+
+  dontRemindClose.value = false
+  try {
+    await ElMessageBox.confirm(
+      h('div', [
+        h(
+          'div',
+          t('titlebar.closeWithActiveConnectionsMessage', {
+            count: props.activeConnectionCount
+          })
+        ),
+        // 非受控使用：选中态由组件自身维护，变更时同步到 ref
+        h(
+          ElCheckbox,
+          {
+            class: 'close-connections-dialog-checkbox',
+            'onUpdate:modelValue': (val: boolean | string | number) => {
+              dontRemindClose.value = val === true
+            }
+          },
+          () => t('titlebar.closeWithActiveConnectionsDontRemind')
+        )
+      ]),
+      t('titlebar.closeWithActiveConnectionsTitle'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning',
+        center: true,
+        customClass: 'close-connections-dialog'
+      }
+    )
+  } catch {
+    // 用户取消关闭
+    return false
+  }
+
+  // 勾选"不再提醒"：持久化偏好，之后关闭不再提示
+  if (dontRemindClose.value) {
+    try {
+      // IPC 无法序列化 Proxy，必须深拷贝为普通对象
+      const mergedSettings = JSON.parse(
+        JSON.stringify({
+          ...currentSettings,
+          confirmCloseWithActiveConnections: false
+        })
+      )
+      await window.storageApi.saveSettings(mergedSettings)
+      window.dispatchEvent(new CustomEvent('settings-updated', { detail: mergedSettings }))
+    } catch (error) {
+      console.error(t('common.saveFailed'), error)
+    }
+  }
+  return true
+}
+
+const closeWindow = async (): Promise<void> => {
+  if (!(await confirmCloseWithActiveConnections())) return
+  window.windowApi.closeWindow()
+}
 
 const hideFileMenu = () => {
   setTimeout(() => {

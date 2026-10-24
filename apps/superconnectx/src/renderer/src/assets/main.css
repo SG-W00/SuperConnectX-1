@@ -201,6 +201,24 @@ body {
   color: var(--color-warning-light) !important;
 }
 
+/* 关闭应用前确认框（含"不再提醒"复选框，样式与对话框中的 el-checkbox 保持一致） */
+.close-connections-dialog .el-message-box__message {
+  line-height: 1.6;
+}
+
+.close-connections-dialog .close-connections-dialog-checkbox {
+  margin-top: 12px;
+  color: var(--text-dialog) !important;
+  --el-checkbox-checked-bg-color: var(--focus-border-color, #007fd4);
+  --el-checkbox-checked-input-border-color: var(--focus-border-color, #007fd4);
+}
+
+.close-connections-dialog .el-checkbox__label {
+  color: var(--text-dialog) !important;
+  padding-left: 8px;
+  font-size: 13px;
+}
+
 .el-message-box__btns {
   padding: 12px 20px !important;
 }
