@@ -318,6 +318,7 @@
               </div>
               <el-button
                 size="small"
+                class="btn-danger"
                 @click="handleCleanupLogs"
                 :loading="isCleaningUp || isSavingSettings"
                 :disabled="isCleaningUp || isSavingSettings"
@@ -1244,6 +1245,33 @@ const handleSettingsUpdated = (event: Event) => {
 
 .setting-item:last-child {
   border-bottom: none;
+}
+
+/* 危险操作按钮（立即清理日志）：与主/取消按钮同一套变量，只换红色。
+   全局 .btn-primary 是 width:100%，此处显式改回自适应宽度，与设置页其他操作按钮一致 */
+.btn-danger {
+  width: auto !important;
+  background-color: var(--btn-danger-bg) !important;
+  border-color: var(--btn-danger-bg) !important;
+  color: var(--btn-danger-text) !important;
+}
+
+.btn-danger:hover:not(:disabled):not(:loading) {
+  background-color: var(--btn-danger-hover) !important;
+  border-color: var(--btn-danger-hover) !important;
+}
+
+.btn-danger:active:not(:disabled):not(:loading) {
+  background-color: var(--btn-danger-active) !important;
+  border-color: var(--btn-danger-active) !important;
+}
+
+.btn-danger:disabled {
+  background-color: var(--btn-primary-disabled-bg) !important;
+  border-color: var(--btn-primary-disabled-border) !important;
+  color: var(--btn-primary-disabled-text) !important;
+  cursor: not-allowed;
+  opacity: 1 !important;
 }
 
 .setting-label {
