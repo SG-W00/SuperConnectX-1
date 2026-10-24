@@ -147,12 +147,12 @@
     <el-dialog
       :title="isEditing ? t('presetCommands.editCommand') : t('presetCommands.addCommand')"
       v-model="isPresetDialogOpen"
-      width="400px"
+      width="560px"
       :close-on-click-modal="false"
     >
       <el-form :model="presetForm" :rules="presetRules" ref="presetFormRef" label-width="120px" @submit.prevent @keydown.enter="savePresetCommand">
         <el-form-item :label="t('presetCommands.commandName')" prop="name">
-          <el-input v-model="presetForm.name" :placeholder="t('presetCommands.commandNamePlaceholder')" ref="nameInputRef" />
+          <el-input v-model="presetForm.name" :placeholder="t('presetCommands.commandNamePlaceholder')" ref="nameInputRef" :spellcheck="false" />
         </el-form-item>
         <el-form-item :label="t('presetCommands.commandContent')" prop="command">
           <el-input
@@ -161,6 +161,7 @@
             :placeholder="t('presetCommands.commandContentPlaceholder')"
             :rows="4"
             class="custom-textarea"
+            :spellcheck="false"
           />
         </el-form-item>
         <el-form-item :label="t('presetCommands.loopDelay')" prop="delay">
