@@ -414,7 +414,10 @@
             <div class="group-title">{{ t('basicSettings.restore') }}</div>
             <div class="setting-item restore-header-item">
               <div class="setting-label">
-                <span class="label-text">{{ t('basicSettings.restoreList') }}</span>
+                <span class="label-text">
+                  {{ t('basicSettings.restoreList') }}
+                  <span class="backup-list-count">({{ backupList.length }})</span>
+                </span>
                 <span class="label-desc">{{ t('basicSettings.restoreListDesc') }}</span>
               </div>
               <el-button type="text" icon="Refresh" @click="refreshBackupList" size="small" class="icon-text-button">
@@ -1439,6 +1442,14 @@ const handleSettingsUpdated = (event: Event) => {
 /* 备份恢复样式 */
 .restore-header-item {
   padding-bottom: 4px;
+}
+
+/* 可恢复备份列表标题右侧的数量徽标，如 "(12)" */
+.backup-list-count {
+  margin-left: 4px;
+  color: var(--settings-backup-size);
+  font-size: 13px;
+  font-weight: normal;
 }
 
 .no-backups {
