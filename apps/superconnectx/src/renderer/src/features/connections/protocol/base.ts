@@ -42,6 +42,8 @@ export interface ComConnection extends BaseConnection {
   encoding: string
   readTimeout: number
   writeTimeout: number
+  /** 分包超时（ms）：无换行数据停留超过该时长即强制输出，0 表示禁用 */
+  packetTimeout: number
   flowControl: string
   rts: boolean
   dtr: boolean

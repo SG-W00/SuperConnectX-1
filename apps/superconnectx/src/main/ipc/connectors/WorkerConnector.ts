@@ -49,6 +49,7 @@ export default class WorkerConnector {
       encoding: conn.encoding,
       readTimeout: conn.readTimeout,
       writeTimeout: conn.writeTimeout,
+      packetTimeout: conn.packetTimeout,
       flowControl: conn.flowControl,
       rts: conn.rts,
       dtr: conn.dtr,

@@ -13,6 +13,8 @@ interface ComPortSettings {
   encoding: string
   readTimeout: number
   writeTimeout: number
+  /** 分包超时（ms）：无换行数据停留超过该时长即强制输出，0 表示禁用 */
+  packetTimeout?: number
   rts?: boolean
   dtr?: boolean
   flowControl?: 'none' | 'hardware' | 'software'

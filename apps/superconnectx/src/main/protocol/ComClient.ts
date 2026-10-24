@@ -11,6 +11,8 @@ const DEFAULT_PARITY = 'none' as const
 const DEFAULT_ENCODING = 'utf8'
 const READ_INTERVAL_MS = 10 // 固定10ms读取间隔
 const FLUSH_TIMEOUT_MS = 100 // 空闲超时：buffer 中有数据但超过此时间无新数据到达，强制刷新
+const DEFAULT_PACKET_TIMEOUT_MS = 50 // 默认分包超时：无换行数据停留超过该时长即强制输出
+const MAX_PACKET_TIMEOUT_MS = 60000 // 分包超时上限，防止误填超大值导致长时间无输出
 const MAX_BUFFER_BYTES = 1024 * 1024 // 无换行输出也必须有上限，避免接收缓冲区无限增长
 const CLOSE_TIMEOUT_MS = 5000
 
@@ -20,6 +22,10 @@ interface SerialConnection {
   timer: NodeJS.Timeout | null
   flushTimer: NodeJS.Timeout | null
   lastDataTime: number
+  /** 未成行数据首次进入 buffer 的时间戳，0 表示当前没有待刷新数据 */
+  pendingSince: number
+  /** 分包超时（ms），0 表示禁用部分行停留刷新 */
+  packetTimeout: number
   writeTimeout: number
   encoding: string
   onData: any
@@ -36,11 +42,48 @@ export default class ComClient extends BaseClient {
     super(logger)
   }
 
+  /**
+   * 校验并归一化分包超时配置：
+   * - undefined / null / 非数字 / 负数 / NaN → 默认 50ms
+   * - 0 → 禁用部分行停留刷新（仅按换行符/空闲刷新输出）
+   * - 超过上限 → 收敛到上限
+   */
+  private normalizePacketTimeout(value: number | undefined | null): number {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      return DEFAULT_PACKET_TIMEOUT_MS
+    }
+    return Math.min(Math.floor(value), MAX_PACKET_TIMEOUT_MS)
+  }
+
+  /**
+   * 把 buffer 中"已完整可解码"的前缀立即输出，尾部残缺的多字节字符留在 buffer 中等待后续拼接。
+   * 用于：无换行数据的定时刷新、缓冲区上限刷新、重开端口前抢救未显示数据。
+   * @returns 刷新后仍需保留的字节
+   */
+  private flushCompletePrefix(connection: SerialConnection, reason: string): Buffer {
+    const { buffer, splitter, onData, onLog } = connection
+    if (!buffer || buffer.length === 0) return Buffer.alloc(0)
+
+    const flushed = splitter.decodeCompletePrefix(buffer)
+    connection.buffer = flushed.remainder
+    if (flushed.text) {
+      const timestamp = BufferLineSplitter.timestamp()
+      onData?.({ data: flushed.text, timestamp })
+      onLog?.(splitter.toLogLine(flushed.text), timestamp)
+    }
+    this.logger.info(`serial ${reason} flush: ${flushed.text.length} chars`)
+    return flushed.remainder
+  }
+
   // 处理缓冲区数据，按行分割并添加时间戳
   private processBuffer(connection: SerialConnection): void {
     try {
       const { buffer, splitter, onData, onLog } = connection
-      if (!buffer || buffer.length === 0) return
+      if (!buffer || buffer.length === 0) {
+        // 没有待刷新数据，重置停留计时
+        connection.pendingSince = 0
+        return
+      }
 
       const result = splitter.split(buffer)
       connection.buffer = result.remainder
@@ -51,17 +94,31 @@ export default class ComClient extends BaseClient {
         onLog?.(result.log, timestamp)
       }
 
-      // 空闲刷新只对"停止发送"生效；若设备持续发送不带换行符的内容（如用 \b
-      // 刷进度条），split() 会一直保留 remainder，必须有界刷新，否则 Buffer 随运行时间无限增长。
-      if (connection.buffer.length > MAX_BUFFER_BYTES) {
-        const timestamp = BufferLineSplitter.timestamp()
-        const flushed = splitter.decodeCompletePrefix(connection.buffer)
-        connection.buffer = flushed.remainder
-        this.logger.info(`serial buffer cap flush: ${flushed.text.length} chars`)
-        if (flushed.text) {
-          onData?.({ data: flushed.text, timestamp })
-          onLog?.(splitter.toLogLine(flushed.text), timestamp)
+      const now = Date.now()
+
+      // 部分行停留超时（分包超时）：设备持续发送不带换行符的内容时（如 \b 刷进度条、
+      // 二进制帧、只有首行带换行的日志流），lastDataTime 会被不断刷新，空闲刷新永不触发，
+      // 数据会一直压在 buffer 里不显示，用户会误以为死机或丢日志。
+      // 这里按"停留时长"兜底，保证连续流也能在分包超时内显示；超时配 0 时禁用该行为，
+      // 退回"仅按换行符/空闲刷新输出"的原始语义。
+      if (connection.buffer.length > 0) {
+        if (connection.pendingSince === 0) {
+          connection.pendingSince = now
+        } else if (
+          connection.packetTimeout > 0 &&
+          now - connection.pendingSince >= connection.packetTimeout
+        ) {
+          this.flushCompletePrefix(connection, 'pending')
+          connection.pendingSince = connection.buffer.length > 0 ? now : 0
         }
+      } else {
+        connection.pendingSince = 0
+      }
+
+      // 兜底上限：即使上面的定时刷新被跳过，Buffer 也必须有界，否则随运行时间无限增长。
+      if (connection.buffer.length > MAX_BUFFER_BYTES) {
+        this.flushCompletePrefix(connection, 'buffer cap')
+        connection.pendingSince = connection.buffer.length > 0 ? now : 0
       }
     } catch (err: any) {
       this.logger.error(`processBuffer error: ${err?.message || err}`)
@@ -82,6 +139,7 @@ export default class ComClient extends BaseClient {
     const remainingStr = splitter.decodeFull(buffer)
     connection.buffer = Buffer.alloc(0)
     connection.lastDataTime = Date.now()
+    connection.pendingSince = 0
 
     this.logger.info(`serial idle flush: ${buffer.length} bytes after ${elapsed}ms idle`)
     onData?.({ data: remainingStr, timestamp })
@@ -97,6 +155,7 @@ export default class ComClient extends BaseClient {
     const encoding = (typeof info.encoding === 'string' && info.encoding.length > 0) ? info.encoding : DEFAULT_ENCODING
     const readTimeout = info.readTimeout || 0
     const writeTimeout = info.writeTimeout || 0
+    const packetTimeout = this.normalizePacketTimeout(info.packetTimeout)
     const sessionId = info.sessionId
 
     if (!comName) {
@@ -142,6 +201,8 @@ export default class ComClient extends BaseClient {
             timer: null,
             flushTimer: null,
             lastDataTime: Date.now(),
+            pendingSince: 0,
+            packetTimeout: packetTimeout,
             writeTimeout: writeTimeout,
             encoding: encoding,
             onData: onData,
@@ -386,11 +447,24 @@ export default class ComClient extends BaseClient {
     encoding?: string
     readTimeout?: number
     writeTimeout?: number
+    packetTimeout?: number
     rts?: boolean
     dtr?: boolean
     flowControl?: 'none' | 'hardware' | 'software'
     receiveHex?: boolean
   }): Promise<object> {
+
+    // 分包超时只影响缓冲刷新节奏，与端口硬件参数无关，
+    // 单独更新时直接改写，避免不必要的重开端口（重开会复位设备）
+    if (config.packetTimeout !== undefined) {
+      const connection = this.serialConnections.get(connId)
+      if (connection) {
+        connection.packetTimeout = this.normalizePacketTimeout(config.packetTimeout)
+        this.logger.info(`update serial packetTimeout: ${connection.packetTimeout}, sessionId: ${connId}`)
+        return { success: true, message: 'Updated successfully' }
+      }
+      return { success: false, message: 'Connection does not exist' }
+    }
 
     // 动态更新 receiveHex 参数
     if (config.receiveHex !== undefined) {
@@ -465,13 +539,22 @@ export default class ComClient extends BaseClient {
         newPort.once('open', () => {
           this.logger.info(`serial port reopened successfully with new config`)
 
+          // 重开端口前先把旧缓冲区中未显示的数据抢救输出，残缺字节衔接到新连接，
+          // 避免改波特率/编码时静默丢弃已接收但未成行的数据
+          const carried = this.flushCompletePrefix(connection, 'config update')
+
           // 更新连接信息
           const newConnection: SerialConnection = {
             port: newPort,
-            buffer: Buffer.alloc(0),
+            buffer: carried,
             timer: null,
             flushTimer: null,
             lastDataTime: Date.now(),
+            pendingSince: 0,
+            packetTimeout:
+              config.packetTimeout !== undefined
+                ? this.normalizePacketTimeout(config.packetTimeout)
+                : connection.packetTimeout,
             writeTimeout: config.writeTimeout ?? connection.writeTimeout,
             encoding: newEncoding,
             onData: savedOnData,
@@ -480,7 +563,7 @@ export default class ComClient extends BaseClient {
             receiveHex: connection.receiveHex,
             splitter: new BufferLineSplitter(newEncoding, connection.receiveHex)
           }
-            this.serialConnections.set(connId, newConnection)
+          this.serialConnections.set(connId, newConnection)
 
           // 收集数据到缓冲区（Buffer 累积，避免多字节字符被分割）
           newPort.on('data', (data: Buffer) => {
@@ -557,12 +640,17 @@ export default class ComClient extends BaseClient {
 
     recoveryPort.open((err: Error | null) => {
       if (!err) {
+        // 恢复前先把旧缓冲区中未显示的数据抢救输出，残缺字节衔接到新连接
+        const carried = this.flushCompletePrefix(oldConnection, 'reopen')
+
         const newConnection: SerialConnection = {
           port: recoveryPort,
-          buffer: Buffer.alloc(0),
+          buffer: carried,
           timer: null,
           flushTimer: null,
           lastDataTime: Date.now(),
+          pendingSince: 0,
+          packetTimeout: oldConnection.packetTimeout,
           writeTimeout: oldConnection.writeTimeout,
           encoding: encoding,
           onData: oldConnection.onData,

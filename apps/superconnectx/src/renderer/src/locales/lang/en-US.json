@@ -351,6 +351,7 @@
     "advancedSettings": "Serial Advanced Settings",
     "openTimeout": "Open Timeout",
     "writeTimeout": "Write Timeout",
+    "packetTimeout": "Packet Timeout",
     "flowControl": "Flow Control",
     "none": "None",
     "even": "Even",

@@ -14,6 +14,8 @@ export default interface ConnectionInfo {
   encoding?: string
   readTimeout?: number
   writeTimeout?: number
+  /** 分包超时（ms）：无换行数据停留超过该时长即强制输出，0 表示禁用（仅按换行符/空闲刷新输出） */
+  packetTimeout?: number
   // 流控制参数
   flowControl?: 'none' | 'hardware' | 'software'
   rts?: boolean
