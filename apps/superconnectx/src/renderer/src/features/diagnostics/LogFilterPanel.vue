@@ -1,5 +1,11 @@
 <template>
-  <div class="log-filter-panel" :style="{ width: panelWidth + 'px' }" @mousedown.stop @click.stop>
+  <div
+    class="log-filter-panel"
+    :style="{ width: panelWidth + 'px' }"
+    @mousedown.stop
+    @click.stop
+    @click="closeLineMenu"
+  >
     <!-- 左侧拖拽分隔条，用于调整面板宽度 -->
     <div class="filter-resizer" @mousedown.stop.prevent="onResizeStart"></div>
     <div class="filter-header">
@@ -32,7 +38,7 @@
       </div>
     </div>
 
-    <div class="filter-list" ref="listRef">
+    <div class="filter-list" ref="listRef" @scroll="closeLineMenu">
       <template v-if="matchedLines.length > 0">
         <div
           v-for="line in matchedLines"
@@ -40,6 +46,7 @@
           class="filter-item"
           :class="{ 'filter-item-active': line.lineNumber === activeLineNumber }"
           @click="locateLine(line.lineNumber)"
+          @contextmenu.prevent="openLineMenu(line, $event)"
         >
           <span class="filter-item-num">{{ line.lineNumber }}</span>
           <span class="filter-item-text">
@@ -52,6 +59,19 @@
       </template>
       <div v-else-if="pattern.trim()" class="filter-empty">{{ t('terminal.logFilterNoMatch') }}</div>
       <div v-else class="filter-empty">{{ t('terminal.logFilterHint') }}</div>
+    </div>
+
+    <!-- 日志行右键菜单 -->
+    <div
+      v-if="lineMenuVisible"
+      class="line-menu-container"
+      :style="{ left: lineMenuLeft + 'px', top: lineMenuTop + 'px' }"
+      @click.stop
+      @contextmenu.prevent
+    >
+      <div class="line-menu">
+        <div class="line-menu-item" @click="copyLine">{{ t('common.copy') }}</div>
+      </div>
     </div>
   </div>
 </template>
@@ -98,10 +118,6 @@ const onResizeEnd = () => {
   window.removeEventListener('mouseup', onResizeEnd)
 }
 
-onBeforeUnmount(() => {
-  onResizeEnd()
-})
-
 interface LogFilterLine {
   lineNumber: number
   text: string
@@ -123,6 +139,69 @@ const regexError = ref('')
 const activeLineNumber = ref<number | null>(null)
 const listRef = ref<HTMLElement | null>(null)
 const filterInputRef = ref<{ focus: () => void } | null>(null)
+
+// ===== 日志行右键菜单 =====
+// 菜单尺寸（用于靠近视口边缘时翻转），与 .line-menu 样式保持一致
+const LINE_MENU_HEIGHT = 32
+const LINE_MENU_WIDTH = 120
+const lineMenuVisible = ref(false)
+const lineMenuLeft = ref(0)
+const lineMenuTop = ref(0)
+// 当前右键选中的日志行
+const lineMenuLine = ref<LogFilterLine | null>(null)
+
+const closeLineMenu = (): void => {
+  lineMenuVisible.value = false
+}
+
+const openLineMenu = (line: LogFilterLine, event: MouseEvent): void => {
+  // 阻止冒泡到 document 上的 contextmenu 监听，否则菜单刚弹出就被关闭
+  event.stopPropagation()
+
+  // 右键即选中该行，给用户明确的复制目标
+  activeLineNumber.value = line.lineNumber
+  lineMenuLine.value = line
+
+  let left = event.clientX
+  let top = event.clientY
+  // 靠近底部时向上翻转，靠近右边界时向左翻转，避免菜单被视口裁剪
+  if (top + LINE_MENU_HEIGHT > window.innerHeight) {
+    top = Math.max(0, window.innerHeight - LINE_MENU_HEIGHT - 4)
+  }
+  if (left + LINE_MENU_WIDTH > window.innerWidth) {
+    left = Math.max(0, window.innerWidth - LINE_MENU_WIDTH - 4)
+  }
+
+  lineMenuLeft.value = left
+  lineMenuTop.value = top
+  lineMenuVisible.value = true
+}
+
+const copyLine = async (): Promise<void> => {
+  const line = lineMenuLine.value
+  closeLineMenu()
+  if (!line) return
+  try {
+    await navigator.clipboard.writeText(line.text)
+  } catch (err) {
+    console.error('copy log line failed:', err)
+  }
+}
+
+// 面板内已用 @click.stop 阻止冒泡，这里只处理面板外的点击/右键
+const onDocumentClick = (event: MouseEvent): void => {
+  if (!lineMenuVisible.value) return
+  const menu = document.querySelector('.line-menu-container')
+  if (menu && !menu.contains(event.target as Node)) closeLineMenu()
+}
+
+const onDocumentContextMenu = (): void => {
+  closeLineMenu()
+}
+
+const onDocumentKeyDown = (event: KeyboardEvent): void => {
+  if (event.key === 'Escape') closeLineMenu()
+}
 
 // 编译后的正则必须是响应式 ref，否则 computed(matchedLines) 不会在输入时重新计算
 const regex = shallowRef<RegExp | null>(null)
@@ -191,13 +270,36 @@ const highlightSegments = (text: string): { text: string; matched: boolean }[] =
   return segments
 }
 
+/** 判断两次匹配结果的内容是否等价（行号与文本逐一相同） */
+const isSameMatchedLines = (a: LogFilterLine[], b: LogFilterLine[]): boolean => {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].lineNumber !== b[i].lineNumber || a[i].text !== b[i].text) return false
+  }
+  return true
+}
+
 // 结果变化时：若当前选中的行已不在结果中（如正则改变），则取消选中；否则保持选中态
-watch(matchedLines, (lines) => {
+watch(matchedLines, (lines, oldLines) => {
+  // 内容没变就什么都不做：终端持续输出时 props.lines 会不断变化，computed 随之重新求值
+  // 并返回新的数组引用，若不做内容比较就直接关闭菜单，右键菜单会在一瞬间被关掉。
+  if (oldLines && isSameMatchedLines(lines, oldLines)) return
+
   if (
     activeLineNumber.value !== null &&
     !lines.some((l) => l.lineNumber === activeLineNumber.value)
   ) {
     activeLineNumber.value = null
+  }
+
+  // 仅当右键菜单引用的那一行已不在结果中时才关闭菜单（如日志超出上限被裁剪）。
+  // 若只是新增了其他匹配行，菜单应保持打开，否则用户还没点到"复制"菜单就消失了。
+  if (
+    lineMenuVisible.value &&
+    lineMenuLine.value &&
+    !lines.some((l) => l.lineNumber === lineMenuLine.value!.lineNumber)
+  ) {
+    closeLineMenu()
   }
 })
 
@@ -247,6 +349,8 @@ const locateNext = () => {
 watch(
   () => props.visible,
   (val) => {
+    // 面板隐藏时菜单必须一起关闭，否则会残留在界面上
+    closeLineMenu()
     if (val) {
       compileRegex()
       nextTick(() => {
@@ -299,7 +403,19 @@ watch(panelWidth, () => {
 // 正则内容变化时保存
 watch(pattern, persist)
 
-onMounted(loadPersisted)
+onMounted(() => {
+  loadPersisted()
+  document.addEventListener('click', onDocumentClick)
+  document.addEventListener('contextmenu', onDocumentContextMenu)
+  document.addEventListener('keydown', onDocumentKeyDown)
+})
+
+onBeforeUnmount(() => {
+  onResizeEnd()
+  document.removeEventListener('click', onDocumentClick)
+  document.removeEventListener('contextmenu', onDocumentContextMenu)
+  document.removeEventListener('keydown', onDocumentKeyDown)
+})
 </script>
 
 <style scoped>
@@ -465,6 +581,37 @@ onMounted(loadPersisted)
   text-align: center;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+/* 日志行右键菜单：样式与 main.css 的 .context-menu / .menu-item 保持一致 */
+.line-menu-container {
+  position: fixed;
+  z-index: 9999;
+}
+
+.line-menu {
+  min-width: 120px;
+  padding: 4px 0;
+  background-color: var(--menu-bg-color);
+  border: 1px solid var(--menu-border-color);
+  border-radius: var(--menu-border-radius);
+  box-shadow: var(--menu-box-shadow);
+}
+
+.line-menu-item {
+  padding: var(--menu-item-padding);
+  color: var(--menu-item-color);
+  font-size: var(--menu-item-font-size);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.line-menu-item:hover {
+  background-color: var(--menu-item-hover-bg);
+  color: var(--menu-item-hover-color);
 }
 
 .filter-list::-webkit-scrollbar {
