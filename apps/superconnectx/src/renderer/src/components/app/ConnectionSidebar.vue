@@ -11,6 +11,8 @@
     @edit-create-dialog="emit('editCreateDialog', $event)"
     @delete-connection="emit('deleteConnection', $event)"
     @sidebar-menu-command="emit('sidebarMenuCommand', $event)"
+    @update:connection-sort-by="emit('update:connectionSortBy', $event)"
+    @update:connection-sort-dir="emit('update:connectionSortDir', $event)"
   />
 </template>
 
@@ -31,6 +33,8 @@ const props = defineProps<{
   serialRemarks: Record<string, string>
   connections: any[]
   isSerialPortConnected: (path: string) => boolean
+  connectionSortBy: 'name' | 'addOrder'
+  connectionSortDir: 'asc' | 'desc'
 }>()
 
 const emit = defineEmits<{
@@ -44,5 +48,7 @@ const emit = defineEmits<{
   editCreateDialog: [connection: any]
   deleteConnection: [connection: any]
   sidebarMenuCommand: [command: string]
+  'update:connectionSortBy': [value: 'name' | 'addOrder']
+  'update:connectionSortDir': [value: 'asc' | 'desc']
 }>()
 </script>

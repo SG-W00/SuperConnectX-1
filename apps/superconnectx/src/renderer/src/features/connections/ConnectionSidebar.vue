@@ -11,6 +11,49 @@
           {{ t('sidebar.newConnection') }}
         </el-button>
         <SearchInput @search="$emit('search', $event)" />
+        <!-- 搜索下方工具栏：刷新、排序 -->
+        <div class="connection-toolbar">
+          <el-button
+            class="sidebar-icon-btn"
+            icon="Refresh"
+            size="small"
+            :title="t('common.refresh')"
+            @click="$emit('loadSerialPorts')"
+          />
+          <div class="sort-control" ref="sortControlRef">
+            <el-button
+              class="sidebar-icon-btn"
+              size="small"
+              :title="t('sidebar.sort')"
+              @click.stop="toggleSortMenu"
+            >
+              <el-icon><Sort /></el-icon>
+            </el-button>
+            <Teleport to="body">
+              <div
+                v-if="sortMenuVisible"
+                class="context-menu sort-dropdown"
+                :style="{ position: 'fixed', top: sortMenuPos.y + 'px', left: sortMenuPos.x + 'px', zIndex: 3000 }"
+                @click.stop
+                @contextmenu.stop.prevent
+              >
+                <div
+                  v-for="opt in sortOptions"
+                  :key="opt.value"
+                  class="menu-item sort-option"
+                  :class="{ 'is-active': connectionSortBy === opt.value }"
+                  @click="setSortField(opt.value)"
+                >
+                  <span
+                    class="sort-arrow"
+                    :class="{ active: connectionSortBy === opt.value, 'is-asc': connectionSortBy === opt.value && connectionSortDir === 'asc', 'is-desc': connectionSortBy === opt.value && connectionSortDir === 'desc' }"
+                  >{{ connectionSortBy === opt.value ? (connectionSortDir === 'asc' ? '↑' : '↓') : '↑' }}</span>
+                  <span class="sort-label">{{ opt.label }}</span>
+                </div>
+              </div>
+            </Teleport>
+          </div>
+        </div>
       </div>
 
       <!-- 可滚动区域：连接分组列表 -->
@@ -23,9 +66,6 @@
                 <el-icon class="expand-icon" :class="{ collapsed: !serialPortExpanded }"><ArrowRight /></el-icon>
                 COM ({{ filteredSerialPorts.length }})
               </span>
-              <el-button type="text" icon="Refresh" @click.stop="$emit('loadSerialPorts')" size="small" class="icon-text-button">
-                {{ t('common.refresh') }}
-              </el-button>
             </div>
             <div class="connection-group-list" v-show="serialPortExpanded">
               <el-card
@@ -176,7 +216,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import SearchInput from '../../components/SearchInput.vue'
 import { TOOLTIP_SHOW_AFTER } from '../../utils/constants'
@@ -200,6 +240,8 @@ const props = defineProps<{
   serialRemarks: Record<string, string>
   connections: any[]
   isSerialPortConnected: (path: string) => boolean
+  connectionSortBy: 'name' | 'addOrder'
+  connectionSortDir: 'asc' | 'desc'
 }>()
 
 const emit = defineEmits<{
@@ -214,7 +256,49 @@ const emit = defineEmits<{
   deleteConnection: [conn: any]
   sidebarMenuCommand: [command: string]
   serialPortContextMenu: [data: { event: MouseEvent; port: SerialPortInfo }]
+  'update:connectionSortBy': [value: 'name' | 'addOrder']
+  'update:connectionSortDir': [value: 'asc' | 'desc']
 }>()
+
+// 排序菜单状态与逻辑
+const sortMenuVisible = ref(false)
+const sortControlRef = ref<HTMLElement | null>(null)
+const sortMenuPos = ref({ x: 0, y: 0 })
+const sortOptions = computed<{ value: 'name' | 'addOrder'; label: string }[]>(() => [
+  { value: 'name', label: t('sidebar.sortByName') },
+  { value: 'addOrder', label: t('sidebar.sortByAddOrder') }
+])
+const toggleSortMenu = () => {
+  if (!sortMenuVisible.value && sortControlRef.value) {
+    const rect = sortControlRef.value.getBoundingClientRect()
+    const margin = 4
+    let x = rect.left
+    let y = rect.bottom + margin
+    // 右侧溢出时左移，保证菜单在视口内
+    const menuWidth = 180
+    if (x + menuWidth > window.innerWidth - margin) x = window.innerWidth - menuWidth - margin
+    sortMenuPos.value = { x: Math.max(margin, x), y }
+  }
+  sortMenuVisible.value = !sortMenuVisible.value
+}
+const setSortField = (by: 'name' | 'addOrder') => {
+  if (props.connectionSortBy === by) {
+    emit('update:connectionSortDir', props.connectionSortDir === 'asc' ? 'desc' : 'asc')
+  } else {
+    emit('update:connectionSortBy', by)
+  }
+  sortMenuVisible.value = false
+}
+const onSortDocClick = (e: MouseEvent) => {
+  if (!sortMenuVisible.value) return
+  const target = e.target as Element
+  // 菜单已 Teleport 到 body，需单独判断是否点中菜单本身
+  if (target instanceof Element && target.closest('.sort-dropdown')) return
+  const el = sortControlRef.value
+  if (el && !el.contains(target)) sortMenuVisible.value = false
+}
+onMounted(() => document.addEventListener('click', onSortDocClick))
+onUnmounted(() => document.removeEventListener('click', onSortDocClick))
 
 const sidebarMenuItems = computed(() => [
   { id: 'settings', label: t('sidebar.settings') },
@@ -268,7 +352,7 @@ const toggleGroupExpanded = (type: string) => {
 
 .connection-list-fixed {
   flex-shrink: 0;
-  padding: 8px;
+  padding: 8px 8px 2px 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -299,7 +383,7 @@ const toggleGroupExpanded = (type: string) => {
 }
 
 .connection-groups {
-  margin-top: 12px;
+  margin-top: 4px;
 }
 
 .connection-group {
@@ -609,6 +693,75 @@ const toggleGroupExpanded = (type: string) => {
   font-size: 12px;
   text-align: center;
   padding: 8px 0;
+}
+
+/* 搜索下方工具栏：刷新 + 排序 */
+.connection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+/* 工具栏图标按钮：参考“打开所在文件夹”图标按钮外观（28x28 透明方形、居中图标、悬停高亮） */
+.connection-toolbar .sidebar-icon-btn {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  padding: 0 !important;
+  border-radius: 4px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: transparent !important;
+  border: 1px solid transparent !important;
+  color: var(--text-white) !important;
+  transition: all 0.2s ease !important;
+}
+
+.connection-toolbar .sidebar-icon-btn:hover {
+  background-color: var(--overlay-btn-hover) !important;
+  color: var(--text-white) !important;
+}
+
+.sort-control {
+  position: relative;
+  display: inline-flex;
+}
+
+.sort-dropdown {
+  min-width: 180px;
+  user-select: none;
+}
+
+.sort-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sort-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-muted, #888);
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.sort-arrow.active {
+  background-color: var(--accent-blue, #409eff);
+  color: #fff;
+}
+
+.sort-label {
+  flex: 1;
+  min-width: 0;
 }
 
 /* 侧边栏底部工具栏 */

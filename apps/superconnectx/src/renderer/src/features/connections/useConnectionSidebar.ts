@@ -26,6 +26,9 @@ export function useConnectionSidebar() {
   const showSerialPortFriendlyName = ref(true)
   const showSerialPortDetails = ref(false)
   const connectionGroupExpanded = ref<Record<string, boolean>>({ telnet: true, ftp: true, ssh: true })
+  // 连接列表排序：按名称 / 按添加顺序（存储返回的原始顺序），可升/降序
+  const connectionSortBy = ref<'name' | 'addOrder'>('addOrder')
+  const connectionSortDir = ref<'asc' | 'desc'>('asc')
 
   const parseSerialPortType = (port: SerialPortInfo): SerialPortType => {
     const text = [port.path, port.friendlyName, port.manufacturer, port.pnpId].filter(Boolean).join(' ').toLowerCase()
@@ -46,13 +49,32 @@ export function useConnectionSidebar() {
     )
   }
   const filteredSerialPorts = computed(() => {
-    if (!searchKeyword.value) return serialPorts.value
     const keyword = searchKeyword.value.toLowerCase()
-    return serialPorts.value.filter(port => [port.path, port.friendlyName, port.manufacturer, port.vendorId, port.productId, port.serialNumber, port.pnpId, port.locationId].some(value => value?.toLowerCase().includes(keyword)))
+    let ports = serialPorts.value
+    if (keyword) {
+      ports = ports.filter(port => [port.path, port.friendlyName, port.manufacturer, port.vendorId, port.productId, port.serialNumber, port.pnpId, port.locationId].some(value => value?.toLowerCase().includes(keyword)))
+    }
+    // 按名称排序时使用自然排序（COM2 < COM10），按添加顺序保持原始顺序
+    if (connectionSortBy.value === 'name') {
+      const dir = connectionSortDir.value === 'asc' ? 1 : -1
+      ports = ports.slice().sort((a, b) => {
+        const cmp = String(a.path || '').localeCompare(String(b.path || ''), undefined, { numeric: true, sensitivity: 'base' })
+        return cmp * dir
+      })
+    }
+    return ports
   })
   const connectionGroups = computed(() => {
     const groups: Record<string, any[]> = {}
-    filterConnection.value.forEach(connection => {
+    const list = filterConnection.value.slice()
+    if (connectionSortBy.value === 'name') {
+      list.sort((a, b) => {
+        const cmp = String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
+        return connectionSortDir.value === 'asc' ? cmp : -cmp
+      })
+    }
+    // 'addOrder' 保持存储返回的原始顺序，不做排序
+    list.forEach(connection => {
       const type = connection.connectionType || 'other'
       ;(groups[type] ??= []).push(connection)
     })
@@ -90,6 +112,12 @@ export function useConnectionSidebar() {
         serialPortExpanded.value = savedState.sidebar.serialPortExpanded ?? true
         if (savedState.sidebar.sidebarWidth) sidebarWidth.value = savedState.sidebar.sidebarWidth
         connectionGroupExpanded.value = { ...connectionGroupExpanded.value, ...savedState.sidebar.connectionGroupExpanded }
+        if (savedState.sidebar.connectionSortBy === 'name' || savedState.sidebar.connectionSortBy === 'addOrder') {
+          connectionSortBy.value = savedState.sidebar.connectionSortBy
+        }
+        if (savedState.sidebar.connectionSortDir === 'asc' || savedState.sidebar.connectionSortDir === 'desc') {
+          connectionSortDir.value = savedState.sidebar.connectionSortDir
+        }
       }
       const settings = await window.storageApi.getSettings()
       showPortType.value = settings.showPortType ?? true
@@ -109,7 +137,9 @@ export function useConnectionSidebar() {
           showBottomPanel: Boolean(showBottomPanel.value),
           serialPortExpanded: Boolean(serialPortExpanded.value),
           sidebarWidth: Number(sidebarWidth.value),
-          connectionGroupExpanded: JSON.parse(JSON.stringify(connectionGroupExpanded.value))
+          connectionGroupExpanded: JSON.parse(JSON.stringify(connectionGroupExpanded.value)),
+          connectionSortBy: connectionSortBy.value,
+          connectionSortDir: connectionSortDir.value
         }
       })
     } catch (error) {
@@ -119,7 +149,7 @@ export function useConnectionSidebar() {
   const toggleConnectionList = (): void => { showConnectionList.value = !showConnectionList.value }
   const toggleBottomPanel = (): void => { showBottomPanel.value = !showBottomPanel.value }
 
-  watch([showConnectionList, showBottomPanel, serialPortExpanded, connectionGroupExpanded, sidebarWidth], saveSidebarState, { deep: true })
+  watch([showConnectionList, showBottomPanel, serialPortExpanded, connectionGroupExpanded, sidebarWidth, connectionSortBy, connectionSortDir], saveSidebarState, { deep: true })
   watch([connections, searchKeyword], filterList, { immediate: true, deep: true })
 
   /** 应用设置更新（settings-updated 事件 detail）中与侧栏展示相关的偏好 */
@@ -134,5 +164,5 @@ export function useConnectionSidebar() {
     if ('showSerialPortDetails' in settings) showSerialPortDetails.value = !!settings.showSerialPortDetails
   }
 
-  return { connections, searchKeyword, filterConnection, serialPorts, showConnectionList, showBottomPanel, sidebarWidth, serialPortExpanded, showPortType, showSerialPortFriendlyName, showSerialPortDetails, connectionGroupExpanded, filteredSerialPorts, connectionGroups, handleSearch, loadConnections, loadSerialPorts, handleSerialPortsChanged, loadSidebarState, saveSidebarState, toggleConnectionList, toggleBottomPanel, parseSerialPortType, applySettings }
+  return { connections, searchKeyword, filterConnection, serialPorts, showConnectionList, showBottomPanel, sidebarWidth, serialPortExpanded, showPortType, showSerialPortFriendlyName, showSerialPortDetails, connectionGroupExpanded, filteredSerialPorts, connectionGroups, connectionSortBy, connectionSortDir, handleSearch, loadConnections, loadSerialPorts, handleSerialPortsChanged, loadSidebarState, saveSidebarState, toggleConnectionList, toggleBottomPanel, parseSerialPortType, applySettings }
 }

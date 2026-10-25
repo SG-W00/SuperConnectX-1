@@ -283,7 +283,12 @@
     "friendlyName": "Friendly Name",
     "manufacturer": "Manufacturer",
     "serialNumber": "Serial Number",
-    "locationId": "Location ID"
+    "locationId": "Location ID",
+    "sort": "Sort",
+    "sortByName": "By Name",
+    "sortByAddOrder": "By Add Order",
+    "ascending": "Ascending",
+    "descending": "Descending"
   },
   "tabs": {
     "disconnectAll": "Disconnect All",

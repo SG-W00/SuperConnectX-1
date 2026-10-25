@@ -47,6 +47,8 @@
         :serial-remarks="serialRemarks"
         :connections="connections"
         :is-serial-port-connected="isSerialPortConnected"
+        :connection-sort-by="connectionSortBy"
+        :connection-sort-dir="connectionSortDir"
         @open-create-dialog="openCreateDialog"
         @search="handleSearch"
         @load-serial-ports="loadSerialPorts"
@@ -57,7 +59,9 @@
         @delete-connection="deleteConnection"
         @sidebar-menu-command="handleSidebarMenuCommand"
         @serial-port-context-menu="handleSerialPortContextMenu"
-        @update:serial-port-expanded="(v) => (serialPortExpanded = v)"
+        @update:serial-port-expanded="onUpdateSerialPortExpanded"
+        @update:connection-sort-by="onUpdateConnectionSortBy"
+        @update:connection-sort-dir="onUpdateConnectionSortDir"
       />
 
       <!-- 侧边栏分隔条 -->
@@ -401,6 +405,8 @@ const {
   connectionGroupExpanded,
   filteredSerialPorts,
   connectionGroups,
+  connectionSortBy,
+  connectionSortDir,
   handleSearch,
   loadConnections,
   loadSerialPorts,
@@ -410,6 +416,11 @@ const {
   applySettings,
   toggleBottomPanel
 } = useConnectionSidebar()
+
+// 侧栏排序 / 串口折叠状态的更新（来自 ConnectionSidebar 的 v-model 事件）
+const onUpdateSerialPortExpanded = (v: boolean) => { serialPortExpanded.value = v }
+const onUpdateConnectionSortBy = (v: 'name' | 'addOrder') => { connectionSortBy.value = v }
+const onUpdateConnectionSortDir = (v: 'asc' | 'desc') => { connectionSortDir.value = v }
 
 // ---- Tab Manager ----
 const {

@@ -9,6 +9,8 @@ interface SidebarState {
   showConnectionList: boolean
   serialPortExpanded: boolean
   connectionGroupExpanded: Record<string, boolean>
+  connectionSortBy?: 'name' | 'addOrder'
+  connectionSortDir?: 'asc' | 'desc'
 }
 
 // 会话恢复：记录用户重启前打开过的选项卡及连接状态
