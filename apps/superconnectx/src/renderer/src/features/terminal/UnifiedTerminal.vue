@@ -458,8 +458,20 @@ const getCrcBytesBinary = (): string | null => {
 const commandHistory = ref<string[]>([])
 const showHistoryPopup = ref(false)
 const historySelectedIndex = ref(-1)
-let historyFilterInput = '' // 导航时的过滤基准，避免选中改变输入后过滤结果变化
-let historyDraft = '' // 上下键导航历史时保存的原始输入草稿，ArrowDown 回到最新时恢复
+// 导航时的过滤基准：在首次按上键时快照用户已输入的文本，之后每步都会把输入框替换成
+// 历史命令，若不固定基准，过滤条件会跟着选中项变化，弹窗列表会不断收缩导致无法选择。
+// 必须是 ref：filteredHistory 是 computed，普通 let 不会被追踪，改变时不会重新求值。
+const historyFilterInput = ref('')
+// 上下键导航历史时保存的原始输入草稿，ArrowDown 回到最新时恢复。纯暂存值，无需响应式
+let historyDraft = ''
+// 是否处于上下键导航历史的状态。这是导航的唯一判定依据：
+// - 鼠标悬停只会改变 historySelectedIndex（高亮项），不能据此判断导航状态，
+//   否则鼠标划过弹窗后再按上键，会漏掉草稿/过滤基准/导航标记的初始化，
+//   输入框却被换成历史命令，导致后续所有编辑都作用在错误的内容上；
+// - 同理 filteredHistory 也不能再用 historySelectedIndex >= 0 判断，
+//   否则鼠标悬停会把过滤基准切成空串，列表突然变成全量历史。
+// 必须是 ref：理由同 historyFilterInput。
+const isHistoryNavigating = ref(false)
 let showCommandHistory = true // 是否显示历史命令弹窗
 let editor: monaco.editor.IStandaloneCodeEditor | null = null
 let editorModel: monaco.editor.ITextModel | null = null
@@ -1058,8 +1070,11 @@ const handleSendCommand = () => {
 
 // 命令历史相关方法
 const filteredHistory = computed(() => {
-  // 导航中用 historyFilterInput 作为过滤基准，避免选中项改变输入后过滤结果变化
-  const input = (historySelectedIndex.value >= 0 ? historyFilterInput : currentCommand.value).trim().toLowerCase()
+  // 仅键盘导航时用 historyFilterInput 作为过滤基准，避免选中项改变输入后过滤结果变化；
+  // 其余情况（含鼠标悬停高亮）都以当前输入为基准，保证列表稳定不跳动。
+  // 注意：导航中 currentCommand 已被替换成历史命令本身，不能再拿它当过滤条件，
+  // 否则过滤输入会变成 "netstat -at" 这类前缀不匹配的组合，导致后续输入匹配不到任何历史。
+  const input = (isHistoryNavigating.value ? historyFilterInput.value : currentCommand.value).trim().toLowerCase()
   if (!input) return commandHistory.value
   return commandHistory.value.filter(cmd => cmd.toLowerCase().includes(input))
 })
@@ -1096,8 +1111,9 @@ const addToHistory = async (command: string) => {
 
 const onInputChange = () => {
   historySelectedIndex.value = -1
-  historyFilterInput = '' // 用户手动输入时清除导航过滤基准
+  historyFilterInput.value = '' // 用户手动输入时清除导航过滤基准
   historyDraft = '' // 手动输入时清除导航草稿
+  isHistoryNavigating.value = false // 手动输入即退出历史导航，过滤基准回到当前输入
   if (!showCommandHistory) return
   // 有输入内容时自动弹出历史
   if (currentCommand.value.trim() && filteredHistory.value.length > 0) {
@@ -1126,8 +1142,9 @@ const onInputBlur = () => {
 const closeHistoryPopup = () => {
   showHistoryPopup.value = false
   historySelectedIndex.value = -1
-  historyFilterInput = ''
+  historyFilterInput.value = ''
   historyDraft = ''
+  isHistoryNavigating.value = false
 }
 
 const selectHistoryItem = (item: string) => {
@@ -1136,7 +1153,7 @@ const selectHistoryItem = (item: string) => {
   commandInput.value?.focus()
 }
 
-// 历史导航切换输入框内容后，将光标移到末尾并同步弹窗选中项
+// 历史导航切换输入框内容后，将光标移到末尾
 const syncHistoryCursor = () => {
   nextTick(() => {
     const ta = commandInput.value
@@ -1146,9 +1163,6 @@ const syncHistoryCursor = () => {
       ta.selectionStart = ta.selectionEnd = len
     }
   })
-  if (showHistoryPopup.value) {
-    historyFilterInput = currentCommand.value.trim().toLowerCase()
-  }
 }
 
 const deleteHistoryItem = async (item: string) => {
@@ -1166,7 +1180,48 @@ const deleteHistoryItem = async (item: string) => {
   }
 }
 
-const handleInputKeydown = (e: KeyboardEvent) => {
+const handleInputKeydown = (e: KeyboardEvent): void => {
+  // 导航历史时输入框已被替换成整条历史命令，此时用户的任何编辑都必须作用在原始输入上，
+  // 而不是历史命令上：
+  //   - 若不拦截，"netstat -a" 后打个 t 会变成 "netstat -at"，匹配不到任何历史
+  //   - 若不拦截，删字符会从 "netstat -a" 开始删，输入变短了匹配结果反而变少
+  // 注意：只在 keydown 里恢复草稿是不够的——Vue 的重渲染排在微任务中，不会同步更新 DOM，
+  // 浏览器随后的默认动作仍作用在历史命令文本上，接着 input 事件又会用错误内容覆盖恢复的草稿。
+  // 因此这里必须 preventDefault 阻止默认编辑，恢复草稿后再手动应用这次编辑。
+  const isEditingKey = e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete'
+  if (isHistoryNavigating.value && isEditingKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault()
+
+    // 导航中光标固定在末尾，编辑统一按草稿末尾处理
+    const draft = historyDraft
+    let nextValue = draft
+    if (e.key === 'Backspace') {
+      nextValue = draft.slice(0, -1)
+    } else if (e.key !== 'Delete') {
+      nextValue = draft + e.key
+    }
+
+    isHistoryNavigating.value = false
+    historyFilterInput.value = ''
+    historyDraft = ''
+    historySelectedIndex.value = -1
+    currentCommand.value = nextValue
+
+    nextTick(() => {
+      const ta = commandInput.value
+      if (ta) {
+        ta.focus()
+        ta.selectionStart = ta.selectionEnd = nextValue.length
+      }
+    })
+
+    // 编辑后按新输入重新过滤，有匹配则保持弹窗打开
+    if (nextValue.trim() && filteredHistory.value.length > 0) {
+      showHistoryPopup.value = true
+    }
+    return
+  }
+
   if (e.key === 'Enter') {
     // 如果弹窗中有选中项，将选中项填入输入框而非直接发送
     if (showHistoryPopup.value && historySelectedIndex.value >= 0 && historySelectedIndex.value < filteredHistory.value.length) {
@@ -1194,49 +1249,44 @@ const handleInputKeydown = (e: KeyboardEvent) => {
     return
   }
 
-  // 上下键导航历史（直接切换输入框内容，类似 shell 的 history 行为）
+  // 上下键导航历史（在弹窗列表内循环移动，同时把选中项填入输入框）
   if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
     if (!showCommandHistory) return
-    const list = commandHistory.value
+    // 导航范围与弹窗展示保持一致：有匹配项时只在可见的匹配项间切换（保证高亮项与回车填充取到同一条），
+    // 无匹配项时退回全量历史
+    const list = filteredHistory.value.length > 0 ? filteredHistory.value : commandHistory.value
     if (list.length === 0) return
 
     e.preventDefault()
 
-    if (e.key === 'ArrowUp') {
-      // 首次按上键：保存当前草稿，并从最新一条历史开始
-      if (historySelectedIndex.value === -1) {
-        historyDraft = currentCommand.value
-        historySelectedIndex.value = 0
-      } else if (historySelectedIndex.value < list.length - 1) {
-        // 继续向上（更早的命令）
-        historySelectedIndex.value++
-      } else {
-        // 已到最旧的命令，停留在原地
-        return
-      }
-      currentCommand.value = list[historySelectedIndex.value]
-      syncHistoryCursor()
+    // 历史列表是"最新命令在前"，索引 0 即列表第一行，因此箭头方向必须与视觉行序一致：
+    // 上键向上移动（索引递减，趋向更新的命令），下键向下移动（索引递增，趋向更早的命令）。
+    // 之前沿用 shell 的"↑ = 更早命令"语义，索引递增导致视觉上从上往下选中，与按键方向相反。
+    const lastIndex = list.length - 1
+
+    if (!isHistoryNavigating.value) {
+      // 首次按键：按常规下拉列表习惯——下键从第一项开始，上键从最后一项开始。
+      // 必须以 isHistoryNavigating 判断而非 historySelectedIndex === -1：
+      // 后者会被 @mouseenter 改变，鼠标划过弹窗后再按方向键就会跳过这里的初始化，
+      // 导致输入框被换成历史命令、但草稿/过滤基准/导航标记都没设置。
+      historyDraft = currentCommand.value
+      // 必须在替换输入框内容之前快照用户输入：后续每一步都会把输入框替换成历史命令，
+      // 若此时不固定基准，过滤条件会跟着选中项变，弹窗列表随之不断收缩导致无法选择
+      historyFilterInput.value = currentCommand.value.trim().toLowerCase()
+      historySelectedIndex.value = e.key === 'ArrowDown' ? 0 : lastIndex
+      isHistoryNavigating.value = true // 进入历史导航，过滤基准切换为导航快照
+    } else if (e.key === 'ArrowUp') {
+      // 向上移动，到第一行后循环到末行
+      historySelectedIndex.value =
+        historySelectedIndex.value > 0 ? historySelectedIndex.value - 1 : lastIndex
     } else {
-      // 下键：回到较新的命令
-      if (historySelectedIndex.value === -1) {
-        // 未在导航中，按向下键无操作
-        return
-      } else if (historySelectedIndex.value > 0) {
-        historySelectedIndex.value--
-        currentCommand.value = list[historySelectedIndex.value]
-      } else {
-        // 已回到最新一条，恢复原始草稿并退出导航
-        currentCommand.value = historyDraft
-        historySelectedIndex.value = -1
-        historyDraft = ''
-      }
-      syncHistoryCursor()
+      // 向下移动，到末行后循环回第一行
+      historySelectedIndex.value =
+        historySelectedIndex.value < lastIndex ? historySelectedIndex.value + 1 : 0
     }
 
-    // 同步弹窗选中项（若弹窗打开）
-    if (showHistoryPopup.value && historySelectedIndex.value >= 0) {
-      historyFilterInput = currentCommand.value.trim().toLowerCase()
-    }
+    currentCommand.value = list[historySelectedIndex.value]
+    syncHistoryCursor()
     return
   }
 
