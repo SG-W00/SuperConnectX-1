@@ -50,6 +50,13 @@
                 <span class="slider-value">{{ settings.maxDisplayText }} MB</span>
               </div>
             </div>
+            <div class="setting-item">
+              <div class="setting-label">
+                <span class="label-text">{{ t('basicSettings.autoCheckUpdate') }}</span>
+                <span class="label-desc">{{ t('basicSettings.autoCheckUpdateDesc') }}</span>
+              </div>
+              <el-switch class="terminal-switch" v-model="settings.autoCheckUpdate" />
+            </div>
           </div>
 
           <!-- 显示 -->

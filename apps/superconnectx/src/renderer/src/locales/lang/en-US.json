@@ -45,6 +45,8 @@
   },
   "basicSettings": {
     "title": "General Settings",
+    "autoCheckUpdate": "Auto Check for Updates",
+    "autoCheckUpdateDesc": "Automatically check for updates in the background on startup and prompt when a new version is available",
     "language": "Interface Language",
     "languageDesc": "Select the display language for the interface",
     "minimizeToTray": "Minimize to Tray on Close",

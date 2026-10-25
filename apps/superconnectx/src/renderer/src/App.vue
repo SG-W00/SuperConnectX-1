@@ -770,6 +770,29 @@ const loadNotificationDuration = async () => {
   }
 }
 
+// ---- 启动后后台自动检测更新 ----
+const backgroundUpdateCheckActive = ref(false)
+
+const startBackgroundUpdateCheck = () => {
+  if (backgroundUpdateCheckActive.value) return
+  backgroundUpdateCheckActive.value = true
+  window.updateApi.checkForUpdates().catch(() => {
+    backgroundUpdateCheckActive.value = false
+  })
+}
+
+// 后台检测：仅当本次为后台检测且发现新版本时，自动弹出升级窗口
+window.updateApi.onUpdateStatus((data: { status: string; data?: any }) => {
+  if (!backgroundUpdateCheckActive.value) return
+  const s = data.status
+  if (s === 'update-available') {
+    backgroundUpdateCheckActive.value = false
+    updateDialogRef.value?.open()
+  } else if (s === 'update-not-available' || s === 'check-error' || s === 'error') {
+    backgroundUpdateCheckActive.value = false
+  }
+})
+
 // ---- Lifecycle ----
 // 资源监视数据源：桥接基础层 ResourceMonitor 到 toolApi（主进程 CPU/内存采样）
 const fetchAppResource = () => window.toolApi.getAppResource()
@@ -812,6 +835,17 @@ onMounted(async () => {
 
   window.addEventListener('shortcuts-updated', handleShortcutsUpdated)
   window.addEventListener('settings-updated', handleSettingsUpdated)
+
+  // 启动后后台自动检测更新（根据设置决定是否执行）
+  try {
+    const appSettings = await window.storageApi.getSettings()
+    if (appSettings && appSettings.autoCheckUpdate !== false) {
+      // 延迟启动，避免抢占启动初期资源；后台异步检测，不阻塞 UI
+      setTimeout(() => startBackgroundUpdateCheck(), 3000)
+    }
+  } catch {
+    // 读取设置失败则跳过自动检测
+  }
 })
 
 onUnmounted(() => {

@@ -45,6 +45,8 @@
   },
   "basicSettings": {
     "title": "基本配置",
+    "autoCheckUpdate": "自动检测更新",
+    "autoCheckUpdateDesc": "启动后在后台自动检测新版本，发现可升级时弹出提示",
     "language": "界面语言",
     "languageDesc": "选择界面显示语言",
     "minimizeToTray": "关闭后最小化到托盘",

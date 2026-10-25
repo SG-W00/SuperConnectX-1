@@ -33,6 +33,7 @@ interface Settings extends Record<string, any> {
   // 基本设置
   minimizeToTray?: boolean
   confirmCloseWithActiveConnections?: boolean
+  autoCheckUpdate?: boolean
   notificationDuration?: number
   logSplit?: boolean
   logSplitSize?: number
@@ -86,6 +87,7 @@ const defaultSettings: Settings = {
   // 基本设置
   minimizeToTray: false,
   confirmCloseWithActiveConnections: true,
+  autoCheckUpdate: true,
   notificationDuration: 0,
   logSplit: true,
   autoScroll: true,
