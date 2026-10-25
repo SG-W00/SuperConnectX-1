@@ -23,6 +23,30 @@
       />
     </div>
 
+    <!-- CRLF 右键菜单（仅 COM 连接），复用全局 .context-menu 菜单样式。
+         Teleport 到 body，避免被父级 transform 影响 fixed 定位导致偏移 -->
+    <Teleport to="body">
+      <div
+        v-if="crlfMenuVisible"
+        ref="crlfMenuRef"
+        class="context-menu crlf-menu"
+        :style="{ position: 'fixed', top: crlfMenuPos.y + 'px', left: crlfMenuPos.x + 'px', zIndex: 3000 }"
+        @click.stop
+        @contextmenu.stop.prevent
+      >
+        <div
+          v-for="opt in lineEndingOptions"
+          :key="opt.value"
+          class="menu-item"
+          :class="{ 'is-active': lineEnding === opt.value }"
+          @click="selectLineEnding(opt.value)"
+        >
+          <span class="crlf-menu-check">{{ lineEnding === opt.value ? '✓' : '' }}</span>
+          <span>{{ opt.label }}</span>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- 垂直分隔条 -->
     <div
       v-show="showBottomPanel"
@@ -90,11 +114,12 @@
           <el-switch
             width="50"
             v-model="autoNewline"
-            active-text="CRLF"
-            inactive-text="CRLF"
+            :active-text="lineEnding"
+            :inactive-text="lineEnding"
             inline-prompt
             size="small"
             class="terminal-switch-inline"
+            @contextmenu.stop.prevent="onCrlfControlContextMenu"
           />
           <el-switch
             width="50"
@@ -252,6 +277,8 @@ const props = withDefaults(defineProps<{
   showBottomPanel: true
 })
 
+type LineEnding = 'CRLF' | 'CR' | 'LF'
+
 const emit = defineEmits<{
   onClose: []
   onReconnect: []
@@ -265,6 +292,7 @@ const emit = defineEmits<{
   onOpenCommandEditor: [connectionType: string]
   onEditSyntaxRules: []
   onFileUpload: [filePath: string, fileName: string]
+  lineEndingChange: [value: LineEnding]
 }>()
 
 const currentCommand = ref('')
@@ -343,6 +371,85 @@ const terminalOutputStyle = computed(() => {
   return { flex: '1 1 auto' }
 })
 const autoNewline = ref(true) // 是否自动添加回车换行
+const lineEnding = ref<LineEnding>('CRLF') // 自动换行样式：CRLF / CR / LF
+
+// 把换行符样式映射为实际字符
+const lineEndingToChars = (type: LineEnding): string => {
+  switch (type) {
+    case 'CR': return '\r'
+    case 'LF': return '\n'
+    case 'CRLF':
+    default: return '\r\n'
+  }
+}
+
+// 把换行符样式映射为参与 CRC 计算的字节
+const lineEndingToBytes = (type: LineEnding): number[] => {
+  switch (type) {
+    case 'CR': return [0x0d]
+    case 'LF': return [0x0a]
+    case 'CRLF':
+    default: return [0x0d, 0x0a]
+  }
+}
+
+// ── CRLF 右键菜单（仅 COM 连接） ──
+const crlfMenuVisible = ref(false)
+const crlfMenuRef = ref<HTMLElement | null>(null)
+const crlfMenuPos = ref<{ x: number; y: number }>({ x: 0, y: 0 })
+
+const lineEndingOptions = computed<{ value: LineEnding; label: string }[]>(() => [
+  { value: 'CRLF', label: 'CRLF (\\r\\n)' },
+  { value: 'CR', label: 'CR (\\r)' },
+  { value: 'LF', label: 'LF (\\n)' }
+])
+
+const closeCrlfMenu = () => {
+  crlfMenuVisible.value = false
+}
+
+const onCrlfControlContextMenu = (e: MouseEvent) => {
+  // 直接右键 CRLF 开关时弹出菜单（开关在输入区，不在 Monaco 内，需单独处理）
+  showCrlfMenu(e.clientX, e.clientY)
+}
+
+const showCrlfMenu = (x: number, y: number) => {
+  // 仅 COM 连接提供自定义 CRLF 右键菜单；其余连接交给 Monaco 原生菜单
+  if (props.connection.connectionType !== 'com') return
+  const margin = 4
+  // 先贴近光标放置，渲染后按真实尺寸夹紧到视口内，避免贴边时溢出
+  crlfMenuPos.value = { x: x + margin, y: y + margin }
+  crlfMenuVisible.value = true
+  nextTick(() => {
+    const menuEl = crlfMenuRef.value as HTMLElement | null
+    if (!menuEl) return
+    const rect = menuEl.getBoundingClientRect()
+    let nx = crlfMenuPos.value.x
+    let ny = crlfMenuPos.value.y
+    if (nx + rect.width > window.innerWidth - margin) nx = window.innerWidth - rect.width - margin
+    if (ny + rect.height > window.innerHeight - margin) ny = window.innerHeight - rect.height - margin
+    crlfMenuPos.value = { x: Math.max(margin, nx), y: Math.max(margin, ny) }
+  })
+}
+
+const selectLineEnding = (val: LineEnding) => {
+  lineEnding.value = val
+  closeCrlfMenu()
+  emit('lineEndingChange', val)
+}
+
+const onCrlfDocClick = (e: MouseEvent) => {
+  if (!crlfMenuVisible.value) return
+  if (crlfMenuRef.value && !crlfMenuRef.value.contains(e.target as Node)) {
+    closeCrlfMenu()
+  }
+}
+const onCrlfDocContextMenu = () => {
+  if (crlfMenuVisible.value) closeCrlfMenu()
+}
+const onCrlfDocKeyDown = (e: KeyboardEvent) => {
+  if (crlfMenuVisible.value && e.key === 'Escape') closeCrlfMenu()
+}
 const hexMode = ref(false) // 是否为HEX发送模式
 const hexDisplayMode = ref(false) // 是否为HEX显示模式（接收端）
 const showTimestamp = ref(true) // 是否显示时间戳
@@ -389,11 +496,12 @@ const crcInputData = computed((): Uint8Array | null => {
       const encoder = new TextEncoder()
       bytes = encoder.encode(cmd)
     }
-    // 如果开启了自动换行，把 CRLF (\r\n) 也作为原始数据参与CRC计算
+    // 如果开启了自动换行，把换行符也作为原始数据参与CRC计算
     if (autoNewline.value) {
-      const combined = new Uint8Array(bytes.length + 2)
+      const nl = lineEndingToBytes(lineEnding.value)
+      const combined = new Uint8Array(bytes.length + nl.length)
       combined.set(bytes, 0)
-      combined.set([0x0d, 0x0a], bytes.length)
+      combined.set(nl, bytes.length)
       bytes = combined
     }
     return bytes
@@ -475,6 +583,7 @@ const isHistoryNavigating = ref(false)
 let showCommandHistory = true // 是否显示历史命令弹窗
 let editor: monaco.editor.IStandaloneCodeEditor | null = null
 let editorModel: monaco.editor.ITextModel | null = null
+let editorContextMenuDisposer: (() => void) | null = null
 let themeObserver: MutationObserver | null = null
 let syntaxDecorationIds: string[] = []
 let enableSyntaxHighlight = true
@@ -540,6 +649,8 @@ const initEditor = async () => {
   editor = monaco.editor.create(editorContainer.value, {
     model: editorModel,
     readOnly: true,
+    // COM 连接使用自定义 CRLF 右键菜单；其余连接保留 Monaco 原生右键菜单
+    contextmenu: props.connection.connectionType !== 'com',
     lineNumbers: 'on',
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
@@ -568,6 +679,24 @@ const initEditor = async () => {
   if (domNode) {
     domNode.addEventListener('mouseenter', () => { showScrollbar.value = true })
     domNode.addEventListener('mouseleave', () => { showScrollbar.value = false })
+  }
+
+  // 通过 Monaco 官方 onContextMenu 事件拦截 COM 连接的右键，
+  // 该事件在 contextmenu 选项为 false 时仍会触发，且早于 Monaco 原生菜单，
+  // 比在容器上挂捕获监听更可靠（不受 Monaco 节点级监听顺序影响）
+  if (props.connection.connectionType === 'com' && editor) {
+    const sub = editor.onContextMenu((e: any) => {
+      const ctxEvent = e?.event ?? e
+      const native: MouseEvent | null = (ctxEvent?.browserEvent ?? ctxEvent?.event ?? null) as MouseEvent | null
+      const x = native ? native.clientX : (e?.anchor?.x ?? 0)
+      const y = native ? native.clientY : (e?.anchor?.y ?? 0)
+      if (native) {
+        native.preventDefault()
+        native.stopPropagation()
+      }
+      showCrlfMenu(x, y)
+    })
+    editorContextMenuDisposer = () => sub.dispose()
   }
 
   editor.onMouseDown(() => {
@@ -1032,7 +1161,7 @@ const handleSendCommand = () => {
 
     // 先附加回车换行（CRLF属于原始数据的一部分）
     if (autoNewline.value) {
-      sendData = sendData + '\r\n'
+      sendData = sendData + lineEndingToChars(lineEnding.value)
     }
 
     // 附加CRC（如果启用，CRC计算的数据已包含CRLF）
@@ -1045,7 +1174,7 @@ const handleSendCommand = () => {
   } else {
     // 处理回车换行
     if (autoNewline.value) {
-      sendData = sendData + '\r\n'
+      sendData = sendData + lineEndingToChars(lineEnding.value)
     }
   }
 
@@ -1392,6 +1521,8 @@ defineExpose({
   setShowTimestamp: (val: boolean) => { showTimestamp.value = val },
   setCommandInput: (val: string) => { currentCommand.value = val },
   getAutoNewline: () => autoNewline.value,
+  setLineEnding: (val: LineEnding) => { lineEnding.value = val },
+  getLineEnding: () => lineEnding.value,
   getHexMode: () => hexMode.value,
   getCrcEnabled: () => crcEnabled.value,
   getCrcMethod: () => crcMethod.value,
@@ -1489,6 +1620,10 @@ onMounted(async () => {
   window.addEventListener('syntax-rules-updated', handleSyntaxRulesUpdated)
   // 点击外部关闭CRC菜单
   document.addEventListener('click', handleClickOutsideCrc)
+  // CRLF 右键菜单：点击 / 右键 / ESC 关闭
+  document.addEventListener('click', onCrlfDocClick)
+  document.addEventListener('contextmenu', onCrlfDocContextMenu)
+  document.addEventListener('keydown', onCrlfDocKeyDown)
 
   // 监听主题切换，动态更新 Monaco Editor 主题
   themeObserver = new MutationObserver(() => {
@@ -1542,6 +1677,10 @@ onUnmounted(() => {
   window.removeEventListener('settings-updated', handleSettingsUpdated)
   window.removeEventListener('syntax-rules-updated', handleSyntaxRulesUpdated)
   document.removeEventListener('click', handleClickOutsideCrc)
+  document.removeEventListener('click', onCrlfDocClick)
+  editorContextMenuDisposer?.()
+  document.removeEventListener('contextmenu', onCrlfDocContextMenu)
+  document.removeEventListener('keydown', onCrlfDocKeyDown)
   if (themeObserver) {
     themeObserver.disconnect()
     themeObserver = null
@@ -2182,5 +2321,24 @@ watch(() => props.showBottomPanel, () => {
 
 .terminal-input {
   position: relative;
+}
+
+/* CRLF 右键菜单 */
+/* 复用全局 .context-menu / .menu-item / .menu-divider（见 assets/main.css），
+   此处仅补充布局与标题、选中态等局部样式 */
+.crlf-menu {
+  min-width: 140px;
+  user-select: none;
+}
+
+.crlf-menu-check {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+}
+
+.menu-item.is-active {
+  background-color: var(--menu-item-hover-bg, #094771);
+  color: var(--menu-item-hover-color, #fff);
 }
 </style>

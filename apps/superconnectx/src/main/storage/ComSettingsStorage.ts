@@ -24,6 +24,8 @@ interface ComPortSettings {
   hexDisplayMode?: boolean
   showTimestamp?: boolean
   autoNewline?: boolean
+  /** 自定义换行符样式：'CRLF'(默认) | 'CR' | 'LF' */
+  lineEnding?: 'CRLF' | 'CR' | 'LF'
   hexMode?: boolean
   crcEnabled?: boolean
   crcMethod?: string

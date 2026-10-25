@@ -18,6 +18,7 @@
       @on-command-sent="handleCommandSent"
       @on-open-command-editor="emit('openCommandEditor', connection.connectionType)"
       @on-edit-syntax-rules="emit('openSyntaxHighlight')"
+      @line-ending-change="onLineEndingChange"
     >
       <!-- 波特率等设置放到下面 -->
       <template #extra>
@@ -239,6 +240,7 @@ const dtr = ref(false)
 const rts = ref(false)
 const hexDisplayMode = ref(false)
 const autoNewline = ref(true)
+const lineEnding = ref<'CRLF' | 'CR' | 'LF'>('CRLF')
 const hexMode = ref(false)
 const crcEnabled = ref(true)
 const crcMethod = ref<string>('CRC-16/MODBUS')
@@ -334,6 +336,17 @@ watch(autoNewline, (newVal) => {
   saveComSettings()
   unifiedTerminalRef.value?.setAutoNewline?.(newVal)
 })
+
+// 监听自定义换行符样式变化
+watch(lineEnding, (newVal) => {
+  saveComSettings()
+  unifiedTerminalRef.value?.setLineEnding?.(newVal)
+})
+
+// 右键菜单选择换行符样式
+const onLineEndingChange = (val: 'CRLF' | 'CR' | 'LF') => {
+  lineEnding.value = val
+}
 
 // 监听 HEX 发送模式变化
 watch(hexMode, (newVal) => {
@@ -462,6 +475,7 @@ const loadComSettings = async () => {
       hexDisplayMode.value = settings.hexDisplayMode || false
       terminal.showTimestamp.value = settings.showTimestamp !== undefined ? settings.showTimestamp : true
       autoNewline.value = settings.autoNewline !== undefined ? settings.autoNewline : true
+      lineEnding.value = (settings.lineEnding === 'CR' || settings.lineEnding === 'LF') ? settings.lineEnding : 'CRLF'
       hexMode.value = settings.hexMode || false
       crcEnabled.value = settings.crcEnabled !== undefined ? settings.crcEnabled : true
       crcMethod.value = settings.crcMethod || 'CRC-16/MODBUS'
@@ -472,6 +486,7 @@ const loadComSettings = async () => {
       unifiedTerminalRef.value?.setHexDisplayMode?.(hexDisplayMode.value)
       unifiedTerminalRef.value?.setShowTimestamp?.(terminal.showTimestamp.value)
       unifiedTerminalRef.value?.setAutoNewline?.(autoNewline.value)
+      unifiedTerminalRef.value?.setLineEnding?.(lineEnding.value)
       unifiedTerminalRef.value?.setHexMode?.(hexMode.value)
       unifiedTerminalRef.value?.setCrcEnabled?.(crcEnabled.value)
       unifiedTerminalRef.value?.setCrcMethod?.(crcMethod.value)
@@ -505,6 +520,7 @@ const saveComSettings = async () => {
       hexDisplayMode: hexDisplayMode.value,
       showTimestamp: terminal.showTimestamp.value,
       autoNewline: autoNewline.value,
+      lineEnding: lineEnding.value,
       hexMode: hexMode.value,
       crcEnabled: crcEnabled.value,
       crcMethod: crcMethod.value,
@@ -829,6 +845,7 @@ onMounted(async () => {
     unifiedTerminalRef.value?.setHexDisplayMode?.(hexDisplayMode.value)
     unifiedTerminalRef.value?.setShowTimestamp?.(terminal.showTimestamp.value)
     unifiedTerminalRef.value?.setAutoNewline?.(autoNewline.value)
+    unifiedTerminalRef.value?.setLineEnding?.(lineEnding.value)
     unifiedTerminalRef.value?.setHexMode?.(hexMode.value)
     unifiedTerminalRef.value?.setCrcEnabled?.(crcEnabled.value)
     unifiedTerminalRef.value?.setCrcMethod?.(crcMethod.value)
