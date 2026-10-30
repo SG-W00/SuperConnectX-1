@@ -5,5 +5,5 @@
 <script setup lang="ts">
 import FeatureTerminalControl from '../features/terminal/TerminalControl.vue'
 
-defineProps<{ isConnected: boolean; isConnecting: boolean; isAutoScroll: boolean; isShowLog: boolean; isShowTimestamp: boolean; isShowLogFilter?: boolean; activeSyntaxGroupId?: number }>()
+defineProps<{ isConnected: boolean; isConnecting: boolean; isAutoScroll: boolean; isShowLog: boolean; isShowTimestamp: boolean; isSearchSplit?: boolean; activeSyntaxGroupId?: number }>()
 </script>

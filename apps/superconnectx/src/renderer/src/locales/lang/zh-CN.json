@@ -309,6 +309,20 @@
     "splitToNewPanel": "分屏显示",
     "dragToSplit": "拖拽到此处分屏"
   },
+  "searchSplit": {
+    "placeholder": "关键字，多个用 | 分隔，如 [qs] | QS",
+    "countTip": "命中行 / 已接收行",
+    "caseSensitive": "区分大小写",
+    "regex": "正则表达式",
+    "clear": "清空结果",
+    "close": "关闭分屏搜索",
+    "emptyHint": "输入关键字开始筛选，多个关键字用 | 分隔",
+    "noMatch": "无匹配内容",
+    "history": "历史表达式",
+    "clearHistory": "清空",
+    "noHistory": "暂无保存的表达式",
+    "removeHistory": "删除这条表达式"
+  },
   "dialog": {
     "newConnection": "新建连接",
     "editConnection": "编辑连接",
@@ -460,14 +474,7 @@
     "unknownError": "未知错误",
     "clearAll": "清空全部",
     "exporting": "正在导出",
-    "logFilter": "日志过滤",
-    "logFilterPlaceholder": "输入正则表达式过滤日志...",
-    "logFilterHint": "输入正则表达式，匹配的日志将显示在此列表",
-    "logFilterNoMatch": "无匹配结果",
-    "logFilterMatch": "匹配 {count} / {total}",
-    "logFilterInvalidRegex": "正则表达式无效",
-    "prevMatch": "上一个匹配",
-    "nextMatch": "下一个匹配"
+    "searchSplit": "分屏搜索"
   },
   "presetCommands": {
     "title": "预设命令",

@@ -59,14 +59,14 @@
           <el-icon :size="14"><Document /></el-icon>
         </el-button>
       </el-tooltip>
-      <el-tooltip :content="t('terminal.logFilter')" placement="bottom" effect="dark" :show-after="TOOLTIP_SHOW_AFTER" :enterable="false">
+      <el-tooltip :content="t('terminal.searchSplit')" placement="bottom" effect="dark" :show-after="TOOLTIP_SHOW_AFTER" :enterable="false">
         <el-button
           size="small"
           class="icon-action-btn"
-          :class="{ 'filter-active': isShowLogFilter }"
-          @click="emit('onToggleLogFilter')"
+          :class="{ 'btn-active': isSearchSplit }"
+          @click="emit('onToggleSearchSplit')"
         >
-          <el-icon :size="14"><Filter /></el-icon>
+          <el-icon :size="14"><Search /></el-icon>
         </el-button>
       </el-tooltip>
       <el-switch
@@ -115,7 +115,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FolderOpened, Document, Edit, Filter } from '@element-plus/icons-vue'
+import { FolderOpened, Document, Edit, Search } from '@element-plus/icons-vue'
 import { TOOLTIP_SHOW_AFTER } from '../../utils/constants'
 
 const { t } = useI18n()
@@ -131,7 +131,8 @@ const props = defineProps<{
   isAutoScroll: boolean
   isShowLog: boolean
   isShowTimestamp: boolean
-  isShowLogFilter?: boolean
+  /** 分屏搜索是否开启（按钮高亮） */
+  isSearchSplit?: boolean
   activeSyntaxGroupId?: number
 }>()
 
@@ -143,7 +144,7 @@ const emit = defineEmits<{
   onOpenLogFile: []
   onRotateLog: []
   onEditSyntaxRules: []
-  onToggleLogFilter: []
+  onToggleSearchSplit: []
   'update:isAutoScroll': [value: boolean]
   'update:isShowLog': [value: boolean]
   'update:isShowTimestamp': [value: boolean]
@@ -393,7 +394,7 @@ onMounted(() => {
   color: var(--text-white) !important;
 }
 
-.icon-action-btn.filter-active {
+.icon-action-btn.btn-active {
   background-color: var(--terminal-control-auto-scroll-active) !important;
   color: var(--text-white) !important;
 }

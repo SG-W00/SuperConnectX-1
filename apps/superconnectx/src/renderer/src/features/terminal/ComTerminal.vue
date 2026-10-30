@@ -8,7 +8,10 @@
       :init-message="t('comTerminal.waiting', { port: connection.comName })"
       :placeholder="t('comTerminal.placeholder')"
       :show-bottom-panel="showBottomPanel"
+      :search-split="searchSplit"
       session-id-prefix="com"
+      @close-search-split="emit('closeSearchSplit')"
+      @toggle-search-split="emit('toggleSearchSplit')"
       @on-close="handleClose"
       @on-reconnect="reconnect"
       @on-open-log-folder="openLogFolder"
@@ -186,7 +189,7 @@ import { sendDisplayText, recvDisplayText } from './useTerminalDisplayText'
 
 const { t } = useI18n()
 
-const emit = defineEmits(['onClose', 'commandSent', 'onConnect', 'onDisconnect', 'openCommandEditor', 'remarkUpdated', 'fontLoaded', 'openSyntaxHighlight'])
+const emit = defineEmits(['onClose', 'commandSent', 'onConnect', 'onDisconnect', 'openCommandEditor', 'remarkUpdated', 'fontLoaded', 'openSyntaxHighlight', 'closeSearchSplit', 'toggleSearchSplit'])
 const props = withDefaults(defineProps<{
   connection: {
     id: string | number
@@ -206,10 +209,13 @@ const props = withDefaults(defineProps<{
   }
   autoConnect?: boolean
   showBottomPanel?: boolean
+  /** 是否开启分屏搜索（右半区按关键词过滤输出） */
+  searchSplit?: boolean
   onClose?: () => void
 }>(), {
   autoConnect: true,
-  showBottomPanel: true
+  showBottomPanel: true,
+  searchSplit: false
 })
 
 const unifiedTerminalRef = ref<InstanceType<typeof UnifiedTerminal>>()

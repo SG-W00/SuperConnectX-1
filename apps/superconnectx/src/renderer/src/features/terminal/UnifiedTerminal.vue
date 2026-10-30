@@ -1,9 +1,14 @@
 <template>
   <div ref="terminalRoot" class="unified-terminal">
 
-    <!-- 终端输出区域（+ 日志过滤面板） -->
+    <!-- 终端输出区域（+ 日志过滤面板 + 分屏搜索面板） -->
     <div class="output-area" :style="terminalOutputStyle">
-      <div ref="editorContainer" class="terminal-output" :class="{ 'show-scrollbar': showScrollbar }">
+      <div
+        ref="editorContainer"
+        class="terminal-output"
+        :class="{ 'show-scrollbar': showScrollbar }"
+        :style="searchSplit ? { flex: `0 0 ${(searchSplitRatio * 100).toFixed(2)}%` } : undefined"
+      >
         <!-- 滚动按钮 -->
         <div class="scroll-wrapper">
           <el-button icon="ArrowUp" size="mini" circle @click="handleScrollToTop" class="scroll-btn up-btn" />
@@ -15,11 +20,20 @@
           <span class="tx">TX: {{ txBytes }}</span>
         </div>
       </div>
-      <LogFilterPanel
-        v-if="showLogFilter"
-        v-model:visible="showLogFilter"
-        :lines="logLines"
-        @locate="locateLine"
+      <!-- 分屏搜索：与左侧输出区同高，仅把输出窗口一分为二 -->
+      <div
+        v-if="searchSplit"
+        class="search-split-divider"
+        @mousedown.prevent="startSearchSplitResize"
+      ></div>
+      <TerminalSearchSplit
+        v-if="searchSplit"
+        ref="searchSplitRef"
+        class="search-split-panel"
+        :font-size="fontSize"
+        :font-family="fontFamily"
+        :line-numbers="showLineNumbers"
+        @close="emit('closeSearchSplit')"
       />
     </div>
 
@@ -71,7 +85,7 @@
       :is-auto-scroll="isAutoScroll"
       :is-show-log="isShowLog"
       :is-show-timestamp="showTimestamp"
-      :is-show-log-filter="showLogFilter"
+      :is-search-split="searchSplit"
       :active-syntax-group-id="activeSyntaxGroupId"
       @on-close="emit('onClose')"
       @on-reconnect="emit('onReconnect')"
@@ -80,7 +94,7 @@
       @on-open-log-file="emit('onOpenLogFile')"
       @on-rotate-log="emit('onRotateLog')"
       @on-edit-syntax-rules="emit('onEditSyntaxRules')"
-      @on-toggle-log-filter="showLogFilter = !showLogFilter"
+      @on-toggle-search-split="emit('toggleSearchSplit')"
       @update:is-auto-scroll="isAutoScroll = $event"
       @update:is-show-log="isShowLog = $event"
       @update:is-show-timestamp="showTimestamp = $event"
@@ -226,12 +240,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import * as monaco from 'monaco-editor'
 import PresetCommands from '../commands/PresetCommands.vue'
 import TerminalControl from './TerminalControl.vue'
-import LogFilterPanel from '../diagnostics/LogFilterPanel.vue'
+import TerminalSearchSplit from './TerminalSearchSplit.vue'
 import { parseAnsiToSegments } from '../../utils/AnsiParser'
 import { AnsiDecorationManager } from '../../utils/AnsiDecorationManager'
 import { getMonacoTheme } from '../../utils/MonacoTheme'
@@ -268,13 +282,16 @@ const props = withDefaults(defineProps<{
   placeholder?: string
   sessionIdPrefix?: string
   showBottomPanel?: boolean
+  /** 是否开启分屏搜索（输出区一分为二，右侧显示关键词筛选结果） */
+  searchSplit?: boolean
 }>(), {
   isConnected: false,
   isConnecting: false,
   initMessage: '', // will be set via t() in script
   placeholder: '', // will be set via t() in script
   sessionIdPrefix: 'terminal',
-  showBottomPanel: true
+  showBottomPanel: true,
+  searchSplit: false
 })
 
 type LineEnding = 'CRLF' | 'CR' | 'LF'
@@ -293,6 +310,8 @@ const emit = defineEmits<{
   onEditSyntaxRules: []
   onFileUpload: [filePath: string, fileName: string]
   lineEndingChange: [value: LineEnding]
+  closeSearchSplit: []
+  toggleSearchSplit: []
 }>()
 
 const currentCommand = ref('')
@@ -306,31 +325,12 @@ const isAutoScroll = ref(true)
 const isShowLog = ref(true)
 const showScrollbar = ref(false)
 const activeSyntaxGroupId = ref<number | undefined>(undefined)
-const showLogFilter = ref(false)
-// 缓存日志行（lineNumber → 内容），用于过滤面板
-// lineNumber 为 Monaco model 行号，可直接用于定位
-const logLines = shallowRef<{ lineNumber: number; text: string }[]>([])
-
-// 日志过滤面板定位并选中指定行（Monaco model 行号）
-const locateLine = (lineNumber: number) => {
-  if (!editor || !editorModel) return
-  const maxCol = editorModel.getLineMaxColumn(lineNumber)
-  // 选中整行文本，便于复制/查看
-  const sel = new monaco.Selection(lineNumber, 1, lineNumber, maxCol)
-  editor.setSelection(sel)
-  editor.revealLineInCenter(lineNumber)
-  editor.focus()
-  // 高亮目标行（临时装饰）
-  filterHighlightDeco = editor.deltaDecorations(filterHighlightDeco, [
-    {
-      range: new monaco.Range(lineNumber, 1, lineNumber, maxCol),
-      options: { className: 'log-filter-highlight', isWholeLine: true }
-    }
-  ])
-  // 自动滚动到底部按钮场景：定位后取消自动滚动
-  isInternalChange = true
-  isAutoScroll.value = false
-}
+// ---- 分屏搜索（输出区一分为二，右侧显示关键词筛选结果） ----
+const searchSplitRef = ref<InstanceType<typeof TerminalSearchSplit>>()
+/** 左侧输出区宽度比例（拖拽分隔条调整，20%~80%） */
+const searchSplitRatio = ref(0.5)
+/** 行号状态：右侧筛选面板跟随左侧设置（换行固定开启，保证长日志完整显示） */
+const showLineNumbers = ref(true)
 
 // 语法高亮调试日志辅助函数
 const syntaxLog = (message: string, ...args: unknown[]): void => {
@@ -589,7 +589,6 @@ let syntaxDecorationIds: string[] = []
 let enableSyntaxHighlight = true
 let syntaxRuleGroups: SyntaxRuleGroup[] = []
 let lastSyntaxTextLength = 0 // 上次语法高亮扫描时的文本长度，用于增量匹配
-let filterHighlightDeco: string[] = [] // 过滤定位行高亮装饰
 // ANSI 颜色装饰器管理器
 const ansiDecorationMgr = new AnsiDecorationManager()
 let totalRecvSize = 0
@@ -811,54 +810,6 @@ const initEditor = async () => {
   }
 }
 
-// 创建一个字符串的拷贝, 避免切片引用历史版本的完整字符串, 造成内存泄漏
-const getLineContentNoShadow = (n) => Array.from(editorModel?.getLineContent(n) ?? '').join('')
-
-// 全量重建日志行缓存（供过滤面板打开时兜底，确保包含初始行等未增量同步内容）
-const rebuildLogLines = () => {
-  if (!editorModel) return
-  const count = editorModel.getLineCount()
-  const arr: { lineNumber: number; text: string }[] = []
-  for (let n = 1; n <= count; n++) {
-    arr.push({ lineNumber: n, text: getLineContentNoShadow(n) })
-  }
-  logLines.value = arr
-}
-
-// 增量同步日志行缓存（供过滤面板使用），从 prevLineCount 行开始重新读取
-const syncLogLines = (prevLineCount: number) => {
-  // 面板关闭时不维护缓存，避免后台数据流触发每帧 O(n) 拷贝/查找/响应式更新
-  if (!showLogFilter.value) return
-  if (!editorModel) return
-  const newLineCount = editorModel.getLineCount()
-  const arr = [...logLines.value]
-  if (newLineCount === prevLineCount) {
-    // 仅在末行追加，更新末行内容
-    const idx = arr.findIndex((l) => l.lineNumber === prevLineCount)
-    const content = getLineContentNoShadow(prevLineCount)
-    if (idx >= 0) {
-      arr[idx] = { lineNumber: prevLineCount, text: content }
-    } else {
-      arr.push({ lineNumber: prevLineCount, text: content })
-    }
-  } else {
-    // 新增了 newLineCount - prevLineCount 行
-    const idx = arr.findIndex((l) => l.lineNumber === prevLineCount)
-    if (idx >= 0) arr.splice(idx, 1)
-    for (let n = prevLineCount; n <= newLineCount; n++) {
-      arr.push({ lineNumber: n, text: getLineContentNoShadow(n) })
-    }
-  }
-  logLines.value = arr
-}
-
-// 打开过滤面板时，若缓存行数与 model 不符则全量重建兜底
-watch(showLogFilter, (val) => {
-  if (val && editorModel && logLines.value.length !== editorModel.getLineCount()) {
-    rebuildLogLines()
-  }
-})
-
 const appendToTerminal = (content: string) => {
   if (!editorModel) return
 
@@ -895,8 +846,8 @@ const appendToTerminal = (content: string) => {
     return
   }
 
-  // 增量同步日志行缓存（供过滤面板）
-  syncLogLines(prevLineCount)
+  // 分屏搜索：把同一份清理后的文本同步给右侧筛选面板（数据同源，天然包含接收/发送回显）
+  if (props.searchSplit) searchSplitRef.value?.appendChunk(cleanText)
 
   // 应用 ANSI 颜色装饰器（新增文本部分）
   ansiDecorationMgr.apply(segments, insertOffset, cleanText)
@@ -1106,6 +1057,47 @@ const handleScrollToTop = () => {
   isAutoScroll.value = false
 }
 
+// ---- 分屏搜索：分隔条拖拽 / 开启时回填左侧已有内容 ----
+let searchSplitResizing = false
+const onSearchSplitResizeMove = (event: MouseEvent): void => {
+  if (!searchSplitResizing) return
+  const area = editorContainer.value?.parentElement
+  if (!area) return
+  const rect = area.getBoundingClientRect()
+  if (rect.width <= 0) return
+  const ratio = (event.clientX - rect.left) / rect.width
+  searchSplitRatio.value = Math.min(0.8, Math.max(0.2, ratio))
+}
+const stopSearchSplitResize = (): void => {
+  if (!searchSplitResizing) return
+  searchSplitResizing = false
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  document.removeEventListener('mousemove', onSearchSplitResizeMove)
+  document.removeEventListener('mouseup', stopSearchSplitResize)
+}
+const startSearchSplitResize = (): void => {
+  searchSplitResizing = true
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onSearchSplitResizeMove)
+  document.addEventListener('mouseup', stopSearchSplitResize)
+}
+
+/** 开启分屏时回填左侧已有输出（面板内部只取尾部 2MB） */
+const backfillSearchSplit = (): void => {
+  nextTick(() => {
+    searchSplitRef.value?.setSource(editorModel?.getValue() || '')
+  })
+}
+
+watch(
+  () => props.searchSplit,
+  (enabled) => {
+    if (enabled) backfillSearchSplit()
+  }
+)
+
 const clearTerminal = () => {
   if (editorModel) {
     editorModel.setValue('')
@@ -1113,14 +1105,13 @@ const clearTerminal = () => {
   totalRecvSize = 0
   rxBytes.value = '0 B'
   lastSyntaxTextLength = 0
-  logLines.value = []
   if (editor) {
     syntaxDecorationIds = editor.deltaDecorations(syntaxDecorationIds, [])
-    // 清理过滤定位高亮
-    filterHighlightDeco = editor.deltaDecorations(filterHighlightDeco, [])
   }
   // 清理 ANSI 装饰器和样式
   ansiDecorationMgr.reset()
+  // 分屏搜索：右侧筛选结果同步清空，保持左右一致
+  searchSplitRef.value?.clearAll()
 }
 
 const handleCommandSent = (cmdName: string) => emit('onCommandSent', cmdName)
@@ -1544,6 +1535,7 @@ defineExpose({
     editor?.updateOptions({ wordWrap: val ? 'on' : 'off' })
   },
   setLineNumbers: (val: boolean) => {
+    showLineNumbers.value = val
     editor?.updateOptions({ lineNumbers: val ? 'on' : 'off' })
   },
   setLogEditable: (val: boolean) => {
@@ -1664,6 +1656,9 @@ const startVerticalSplit = (e: MouseEvent) => {
 }
 
 onUnmounted(() => {
+  // 分屏搜索：拖拽过程中组件被销毁时清理全局监听
+  stopSearchSplitResize()
+
   if (editorModel) {
     editorModel.dispose()
     editorModel = null
@@ -1802,6 +1797,26 @@ watch(() => props.showBottomPanel, () => {
   min-width: 0;
 }
 
+/* 分屏搜索：输出区一分为二，右侧为筛选结果 */
+.search-split-divider {
+  flex: 0 0 4px;
+  cursor: col-resize;
+  background: var(--com-param-row-border, #3a3a3a);
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+
+.search-split-divider:hover {
+  opacity: 1;
+}
+
+.search-split-panel {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
 .terminal-output {
   flex: 1 1 auto;
   min-height: 0;
@@ -1815,11 +1830,6 @@ watch(() => props.showBottomPanel, () => {
   border: 1px solid transparent;
   transition: border-color 0.2s;
   box-sizing: border-box;
-}
-
-/* 日志过滤面板中点击定位的行高亮 */
-:deep(.log-filter-highlight) {
-  background-color: rgba(64, 158, 255, 0.25) !important;
 }
 
 .rx-tx-overlay {

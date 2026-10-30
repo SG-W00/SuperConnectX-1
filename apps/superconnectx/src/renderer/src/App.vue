@@ -216,7 +216,10 @@
                 :connection="tab"
                 :auto-connect="tab.wasConnected !== false"
                 :show-bottom-panel="showBottomPanel"
+                :search-split="!!tab.searchSplit"
                 class="terminal-component"
+                @close-search-split="handleCloseSearchSplit(tab)"
+                @toggle-search-split="handleToggleSearchSplit(tab)"
                 @on-close="handleTerminalClose(tab.id)"
                 @command-sent="handleCommandSent"
                 @on-connect="() => markSerialPortOccupied(tab.comName)"
@@ -558,6 +561,19 @@ const openRemarkDialogHandler = async () => {
   if (!rightClickedTab.value?.comName) return
   await openRemarkDialog(rightClickedTab.value)
   hideTabMenu()
+}
+
+// ---- 分屏搜索（输出窗口一分为二 + 关键词筛选） ----
+/** 工具栏「分屏搜索」按钮：切换右半区筛选面板 */
+const handleToggleSearchSplit = (tab?: TabItem): void => {
+  if (!tab || tab.connectionType !== 'com') return
+  // 状态挂在 tab 上，随会话恢复一并保留
+  tab.searchSplit = !tab.searchSplit
+}
+
+/** 右侧筛选面板关闭按钮：恢复单栏显示 */
+const handleCloseSearchSplit = (tab?: TabItem): void => {
+  if (tab) tab.searchSplit = false
 }
 
 // 串口右键菜单处理

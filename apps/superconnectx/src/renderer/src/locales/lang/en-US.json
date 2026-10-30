@@ -309,6 +309,20 @@
     "splitToNewPanel": "Split to New Panel",
     "dragToSplit": "Drop here to split"
   },
+  "searchSplit": {
+    "placeholder": "Keywords separated by |, e.g. [qs] | QS",
+    "countTip": "Matched lines / received lines",
+    "caseSensitive": "Match case",
+    "regex": "Regular expression",
+    "clear": "Clear results",
+    "close": "Close split search",
+    "emptyHint": "Type keywords to filter, separate multiple keywords with |",
+    "noMatch": "No matching content",
+    "history": "Saved expressions",
+    "clearHistory": "Clear",
+    "noHistory": "No saved expressions",
+    "removeHistory": "Remove this expression"
+  },
   "dialog": {
     "newConnection": "New Connection",
     "editConnection": "Edit Connection",
@@ -460,14 +474,7 @@
     "unknownError": "Unknown error",
     "clearAll": "Clear All",
     "exporting": "Exporting",
-    "logFilter": "Log Filter",
-    "logFilterPlaceholder": "Enter regex to filter logs...",
-    "logFilterHint": "Enter a regex; matching log lines will be listed here",
-    "logFilterNoMatch": "No matches",
-    "logFilterMatch": "Matched {count} / {total}",
-    "logFilterInvalidRegex": "Invalid regular expression",
-    "prevMatch": "Previous match",
-    "nextMatch": "Next match"
+    "searchSplit": "Split Search"
   },
   "presetCommands": {
     "title": "Preset Commands",
